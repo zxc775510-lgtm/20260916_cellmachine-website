@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>鹽一市場新創攤位生存模擬</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Poppins", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+    background: #000000; color: #cbd5e0; margin: 0; padding: 50px 60px;
+  }
+  .poster {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    column-gap: 44px;
+    min-height: calc(100vh - 100px);
+  }
+
+  /* -- 左／中：地圖畫布 + 圖例 -- */
+  #main-col { grid-column: 1; }
+  #canvas-wrap {
+    background: #000000; border: 1px solid rgba(255,255,255,.15); padding: 10px;
+  }
+  #legend-panel { margin-top: 24px; }
+  #legend-panel h2 { font-size: 15px; font-weight: 500; letter-spacing: .1em; color: #fff; margin: 0 0 14px; }
+  .legend-group { display: grid; grid-template-columns: repeat(5, 1fr); column-gap: 10px; row-gap: 10px; margin-bottom: 20px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; }
+  .sw { width: 44px; height: 13px; border-radius: 7px; display: inline-block; flex-shrink: 0; }
+  .legend-item span.lbl { font-size: 11px; letter-spacing: .03em; line-height: 1.4; }
+  .legend-item .glyph { width: 44px; text-align: center; font-size: 13px; flex-shrink: 0; }
+  .note { color: #718096; font-size: 10.5px; line-height: 1.7; }
+
+  /* -- 右：控制面板 -- */
+  #control-panel { grid-column: 2; }
+  #control-panel h3 { font-size: 12px; font-weight: 600; letter-spacing: .1em; color: #fff; opacity: .9; margin: 22px 0 10px; }
+  #control-panel h3:first-child { margin-top: 0; }
+  .row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  button {
+    background: transparent; color: #e2e8f0; border: 1px solid rgba(255,255,255,.4); border-radius: 999px;
+    padding: 7px 16px; font-size: 11px; letter-spacing: .08em; cursor: pointer; font-family: inherit;
+  }
+  button:hover { background: #ffffff; color: #000000; }
+  select, input[type=range] { width: 100%; accent-color: #ffffff; }
+  select {
+    background: #000000; color: #e2e8f0; border: 1px solid rgba(255,255,255,.3); border-radius: 4px;
+    padding: 6px; font-family: inherit; font-size: 11px;
+  }
+  .stat-line { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px dashed rgba(255,255,255,.15); font-size: 11px; }
+  .stat-line b { color: #ffffff; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="poster">
+  <div id="main-col">
+    <div id="canvas-wrap"></div>
+
+    <div id="legend-panel">
+      <h2>圖例 — MARKET</h2>
+      <div class="legend-group">
+        <div class="legend-item"><span class="sw" style="background:#ed8936"></span><span class="lbl">new（新創營業中）</span></div>
+        <div class="legend-item"><span class="sw" style="background:#5c4a2e"></span><span class="lbl">new_unused（新創閒置）</span></div>
+        <div class="legend-item"><span class="sw" style="background:#3182ce"></span><span class="lbl">old（原有營業中）</span></div>
+        <div class="legend-item"><span class="sw" style="background:#28374d"></span><span class="lbl">old_unused（原有閒置）</span></div>
+        <div class="legend-item"><span class="sw" style="background:#14161c;border:1px solid rgba(255,255,255,.15)"></span><span class="lbl">blank（空白）</span></div>
+        <div class="legend-item"><span class="sw" style="background:#4a5568"></span><span class="lbl">牆面／設施</span></div>
+        <div class="legend-item"><span class="sw" style="background:#c6f6d5"></span><span class="lbl">入口</span></div>
+        <div class="legend-item"><span class="glyph">▲</span><span class="lbl">遊客</span></div>
+        <div class="legend-item"><span class="glyph">●</span><span class="lbl">居民</span></div>
+        <div class="legend-item"><span class="sw" style="background:#4a4020"></span><span class="lbl">動線密度 低</span></div>
+        <div class="legend-item"><span class="sw" style="background:#a68a3c"></span><span class="lbl">動線密度 中</span></div>
+        <div class="legend-item"><span class="sw" style="background:#f6e05e"></span><span class="lbl">動線密度 高</span></div>
+      </div>
+
+      <h2 style="margin-top:26px;">圖例 — BLOCK</h2>
+      <div class="legend-group">
+        <div class="legend-item"><span class="sw" style="background:#e2e8f0"></span><span class="lbl">building</span></div>
+        <div class="legend-item"><span class="sw" style="background:#a0aec0"></span><span class="lbl">sidewalk</span></div>
+        <div class="legend-item"><span class="sw" style="background:#718096"></span><span class="lbl">road</span></div>
+        <div class="legend-item"><span class="sw" style="background:#2d3748"></span><span class="lbl">block</span></div>
+        <div class="legend-item"><span class="sw" style="background:#d4af37"></span><span class="lbl">crosswalk</span></div>
+        <div class="legend-item"><span class="sw" style="background:#00b5d8"></span><span class="lbl">bus_stop</span></div>
+        <div class="legend-item"><span class="sw" style="background:#9f1239"></span><span class="lbl">light_rail_track</span></div>
+        <div class="legend-item"><span class="sw" style="background:#000000;border:1px solid rgba(255,255,255,.15)"></span><span class="lbl">outside</span></div>
+      </div>
+
+      <h2 style="margin-top:26px;">軌跡總覽</h2>
+      <div class="legend-group">
+        <div class="legend-item"><span class="sw" style="background:#fecaca"></span><span class="lbl">遊客軌跡 低</span></div>
+        <div class="legend-item"><span class="sw" style="background:#e53e3e"></span><span class="lbl">遊客軌跡 中</span></div>
+        <div class="legend-item"><span class="sw" style="background:#7f1d1d"></span><span class="lbl">遊客軌跡 高</span></div>
+        <div class="legend-item"><span class="sw" style="background:#bee3f8"></span><span class="lbl">居民軌跡 低</span></div>
+        <div class="legend-item"><span class="sw" style="background:#3182ce"></span><span class="lbl">居民軌跡 中</span></div>
+        <div class="legend-item"><span class="sw" style="background:#2a4365"></span><span class="lbl">居民軌跡 高</span></div>
+        <div class="legend-item"><span class="sw" style="background:#c4b5fd"></span><span class="lbl">重疊 低</span></div>
+        <div class="legend-item"><span class="sw" style="background:#6b46c1"></span><span class="lbl">重疊 中</span></div>
+        <div class="legend-item"><span class="sw" style="background:#3b0764"></span><span class="lbl">重疊 高</span></div>
+      </div>
+
+      <h2 style="margin-top:26px;">歷史軌跡快照</h2>
+      <div class="legend-group">
+        <div class="legend-item"><span class="sw" style="background:#a68a3c"></span><span class="lbl">依序排列，每跑完一次10年留一張</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="control-panel">
+    <h3>播放控制</h3>
+    <div class="row">
+      <button id="btnPlay">▶ 開始</button>
+      <button id="btnReset">↺ 重設</button>
+    </div>
+    <label class="note">模擬速度</label>
+    <input type="range" id="speed" min="20" max="300" step="10" value="100">
+
+    <h3>人流量</h3>
+    <label class="note">人流量倍率</label>
+    <input type="range" id="trafficMult" min="0.2" max="3" step="0.1" value="1">
+    <div class="note" id="trafficMultLabel">1.0×（預設）</div>
+
+    <h3>外部事件</h3>
+    <label class="note"><input type="radio" name="eventChoice" id="evtNone" value="none" checked> 無</label><br>
+    <label class="note"><input type="radio" name="eventChoice" id="evtWarning" value="warning"> 三級警戒式人流管制</label><br>
+    <label class="note"><input type="radio" name="eventChoice" id="evtMarketing" value="marketing"> 青創行銷加碼期</label>
+
+    <h3>畫面一顯示</h3>
+    <label class="note"><input type="checkbox" id="showTrail" checked> 顯示動線熱度</label><br>
+    <label class="note"><input type="checkbox" id="showCatchment" checked> 顯示1km生活圈範圍（畫面一+ISO）</label>
+
+    <h3>軌跡篩選（畫面二）</h3>
+    <select id="trailView">
+      <option value="tourist">遊客軌跡</option>
+      <option value="resident">居民軌跡</option>
+      <option value="overlap">重疊</option>
+    </select>
+
+    <h3>目前狀態</h3>
+    <div id="stats"></div>
+  </div>
+</div>
+
+<script src="agents/tourist.js"></script>
+<script src="agents/resident.js"></script>
+<script src="agents/vendorNew.js"></script>
+<script src="agents/vendorOld.js"></script>
+<script src="agents/vendorIdle.js"></script>
+<script src="agents/cell.js"></script>
+<script src="grid_data.js"></script>
+
+<script>
+// ============================================================
+// 0. 靜態資料：地圖（來自 grid_data.js，QGIS yancheng_research_grid_polygons 為基準，
+//    99_grid_system/adapter_market_to_website.py 產生；不要在這裡手改 GRID_DATA，改 QGIS 那邊再重跑腳本）
+// ============================================================
+
+// ============================================================
+// 1. 環境常數 — 20260823_simulator_setting.md
+// ============================================================
+const CELL = 28, OFFSET_X = 14, OFFSET_Y = 14;
+
+const GRID_ROWS = GRID_DATA.gridRows, GRID_COLS = GRID_DATA.gridCols;
+
+// 2026-09-14：地圖從市場858格擴大到研究範圍266,832格（612x436）後，畫面一/二改成固定大小的
+// 「鏡頭」視窗（可拖曳/縮放，見下方 camera），不再讓畫布跟著地圖總格數變大——不然 612x436 格 x
+// CELL=28px 會變成 17000x12000px 的畫布，瀏覽器根本畫不出來。VIEW_W/VIEW_H 是這個視窗的固定像素
+// 大小，跟地圖實際多大完全脫鉤；GRID_ROWS/GRID_COLS 只用來夾住鏡頭邊界跟給畫面三縮圖用。
+const VIEW_W = 1100, VIEW_H = 640;
+
+// 下方第二畫面（只顯示格子＋軌跡，不顯示攤位營業狀態/行人）跟第一畫面之間夾一條時間軸進度條。
+// 20260914：拿掉「狀態數量隨時間變化」折線圖後，畫面一結束的 y 直接是 VIEW_H 底，不用再加折線圖高度。
+const MAP_BOTTOM = OFFSET_Y + VIEW_H;
+
+// ISO（使用者需求：新版面第二格，之後使用者會說明怎麼操作再實作，這裡先保留空格子）。
+// ISO_H 300→640：實測發現市場 bbox(22x39格)用 2:1 等角投影時，光是攤位本身的菱形footprint斜對角
+// 高度就吃掉大半個300px面板的預算，再加上建築擠出高度會讓格子縮到剩幾個像素、看不出色塊——
+// 面板矮的話不是等角投影參數能調好的，是這個 footprint 尺寸的幾何限制，見 computeIsoLayout()。
+const ISO_LABEL_H = 24;
+const ISO_H = 640;
+const ISO_Y0 = MAP_BOTTOM + 18 + ISO_LABEL_H;
+
+const TIMELINE_H = 46;                          // 時間軸（進度條＋日期label＋起訖年份）保留高度
+const TIMELINE_Y0 = ISO_Y0 + ISO_H + 18;
+const PANEL2_LABEL_H = 24;
+const PANEL2_Y0 = TIMELINE_Y0 + TIMELINE_H + 18 + PANEL2_LABEL_H;
+
+// 畫面三（使用者需求：每跑完一次10年留一張當下的動線熱度快照，3個一列依序排下去）。
+// 縮圖要塞得下整張地圖，THUMB_CELL 依地圖實際大小動態算（市場規模時是8px，全圖規模時會自動縮到1px）。
+// 2026-09-14 效能修正：原本每一幀都重新掃一次全圖畫縮圖，全圖規模(266,832格)+多張快照疊加下這是
+// 主要卡頓來源之一——改成快照當下(captureRunSnapshot)只畫「一次」到離線畫布存起來，見 renderSnapshotThumb。
+const PANEL3_LABEL_H = 24;
+const THUMB_CELL = Math.max(1, Math.floor(480 / GRID_COLS)), THUMB_COLS = 3, THUMB_GAP_X = 20, THUMB_GAP_Y = 24;
+const THUMB_W = GRID_COLS * THUMB_CELL, THUMB_H = GRID_ROWS * THUMB_CELL;
+const PANEL3_Y0 = PANEL2_Y0 + VIEW_H + 18 + PANEL3_LABEL_H;
+// 畫布高度隨快照數量增加（列數變多），不是固定常數；setup() 跟每次新增快照時都會呼叫 canvasHeightFor() 重新 resizeCanvas()。
+function canvasHeightFor(nSnapshots) {
+  const rows = Math.max(1, Math.ceil(nSnapshots / THUMB_COLS));
+  return PANEL3_Y0 + rows * THUMB_H + (rows - 1) * THUMB_GAP_Y + OFFSET_Y;
+}
+
+const OLD_FIXED_CODES = ['L', 'K', 'P', 'X', 'A-2']; // 固定老攤位，不隨機分配、不搬遷（見使用者指定名單）
+// 開局固定 new 名單（使用者標紅色斜線指定）：只保證「開局是 new」，之後照 VendorNew 正常規則搬遷/關店，不是永久凍結。
+const NEW_FIXED_CODES = ['A', 'B', 'F', 'G', 'I', 'M', 'N', 'O', 'R', 'T', 'U', 'V', 'W'];
+const N_OLD_INIT = OLD_FIXED_CODES.length, N_NEW_INIT = NEW_FIXED_CODES.length; // 單位＝店鋪（同 code 分組後的 World.shops），不是 grid id 格數
+
+const K_BEATS_PER_TICK = 6;      // tick=0.5年，beat=tick的1/6（20260823_simulator_setting.md「時間系統」，本次不變動）
+const DAY_LENGTH_BEATS = 96;     // 日循環：純視覺刷新節奏，跟 tick 並行、互不取代
+const MAX_TICKS = 20;            // 時間軸總長10年 ÷ 0.5年/tick＝20；跑到這裡自動停止，不再前進
+const MAX_PEDESTRIANS = 260;
+const TRAIL_STEP_ADD = 1;        // 不衰減、不歸零：拿掉 TRAIL_DECAY，軌跡永久累加
+
+const SIM_START_YEAR = 2026, SIM_START_MONTH = 8; // 時間軸起點 2026/08，終點=起點+MAX_TICKS*6個月=2036/08
+
+// 店鋪狀態配色（黑底版面，見使用者附件參考圖）：new/old 用鮮色，unused 用暗色，blank 幾乎融入底色。
+const STALL_COLOR = {
+  new: '#ed8936', new_unused: '#5c4a2e',
+  old: '#3182ce', old_unused: '#28374d',
+  blank: '#14161c'
+};
+// 2026-09-14 地圖擴大到研究範圍後新增的型別配色（QGIS 那邊 type_label 對照，見 grid_data.js 產生流程）。
+// wall/facility/entry/stallslot/aisle 沿用原本市場配色，這裡只補新增的。
+// 2026-09-14 third pass：building/block/road/sidewalk 改回灰階系統（使用者指定），但彼此要有清楚的
+// 明暗級距（不是像第一版那樣全部擠在同一段深灰），building 最淺、依序變暗到 block 最深：
+// building(最淺) > sidewalk > road > block(最深，僅次於outside的純黑)。
+const NEW_TYPE_COLOR = {
+  building: '#e2e8f0', sidewalk: '#a0aec0', road: '#718096', block: '#2d3748', outside: '#000000',
+  crosswalk: '#d4af37', bus_stop: '#00b5d8', light_rail_track: '#9f1239', light_rail_entrance: '#c6f6d5',
+};
+// 動線熱力離散三級色階（不是漸層/透明度）：低 1–9 次、中 10–24 次、高 25 次以上。
+const RESIDENT_TRAIL_TIERS = { low: '#bee3f8', mid: '#3182ce', high: '#2a4365' };
+// 畫面一：不分客群，兩種熱力合計算一個強度，單一金色系三級深淺（使用者需求(1)：發散軌跡呈現深淺，不分客群）。
+const PANEL1_TRAIL_TIERS = { low: '#4a4020', mid: '#a68a3c', high: '#f6e05e' };
+// 畫面二（軌跡總覽）用紅色系取代橘色系跟畫面一區隔，居民沿用同一組藍色系（RESIDENT_TRAIL_TIERS）。
+const PANEL2_TOURIST_TRAIL_TIERS = { low: '#fecaca', mid: '#e53e3e', high: '#7f1d1d' };
+// 畫面二「重疊」模式：紫色系三級，門檻套用同一組 trailTier()，依 tH+rH（兩種人潮的合計走過次數）分級。
+const OVERLAP_TRAIL_TIERS = { low: '#c4b5fd', mid: '#6b46c1', high: '#3b0764' };
+
+// ISO（2.5D 等角展示，20260914 使用者追加需求）：
+// - 範圍＝市場所在街廓＋離它最近的4個街廓（見 findCityBlocks/computeIsoScope），可拖曳/滾輪縮放。
+// - 1格=1公尺，高度用合理常識給值（沒有真實樓高資料）：市場自己的牆/設施/攤位棚架抓一層樓，
+//   周邊街廓建築抓在地常見的舊式3層透天。路面/人行道/街廓地面用小高低差表示路緣高差（決議#3：
+//   馬路最低＝0，人行道/街廓地面/市場走道/入口略高＝路緣常見的15公分）；沒列在這裡的型別
+//   （road/crosswalk/bus_stop/light_rail_track/outside）維持0＝最低的路面基準。
+const ISO_HEIGHT_M = {
+  wall: 3, facility: 3, stallslot: 3, building: 9,
+  sidewalk: 0.15, block: 0.15, aisle: 0.15, entry: 0.15, light_rail_entrance: 0.15,
+};
+const ISO_PERSON_HEIGHT_M = 1.6; // agent 標記的擠出高度，一般成人身高
+// 20260914 使用者需求#5：isometric 視角建築物/牆面用半透明呈現，減少對市場內部/agent的遮擋；
+// 之後追加需求：攤販（stallslot）也要半透明看得見裡面。
+const ISO_TRANSLUCENT_TYPES = new Set(['building', 'wall', 'stallslot']);
+const ISO_TRANSLUCENT_ALPHA = 0.55;
+const CITY_BLOCK_TYPES = new Set(['building', 'block', 'wall', 'facility', 'stallslot', 'aisle', 'entry', 'light_rail_entrance']);
+const MIN_CITY_BLOCK_CELLS = 1000; // 濾掉巷弄/安全島這種太小的連通塊，不算一個真正的「街廓」
+const ISO_U_MIN = 2, ISO_U_MAX = 40; // 縮放(每公尺像素數)上下限
+
+// ============================================================
+// 2. World — 地圖/通行判斷，跟 agent 種類無關的共用資料
+// ============================================================
+const World = { DIRS4: [[-1, 0], [1, 0], [0, -1], [0, 1]] };
+
+// 2026-09-14：地圖擴大到整個研究範圍後新增的型別（見 adapter_market_to_website.py／
+// cellmachine-grid-staging-workflow 記憶的 CODE_MAP）——building/block/outside/light_rail_track
+// 是實體擋路或範圍外，不可通行；road/sidewalk/crosswalk/bus_stop/light_rail_entrance 可通行。
+const IMPASSABLE_TYPES = new Set(['wall', 'facility', 'building', 'block', 'outside', 'light_rail_track']);
+World.passable = function (r, c) {
+  if (r < 0 || r >= World.ROWS || c < 0 || c >= World.COLS) return false;
+  return !IMPASSABLE_TYPES.has(World.cellType[r][c]);
+};
+World.makeField = function (v) {
+  const f = [];
+  for (let r = 0; r < World.ROWS; r++) f.push(new Array(World.COLS).fill(v));
+  return f;
+};
+
+// ------------------------------------------------------------
+// 鏡頭（camera）：畫面一/二共用同一個鏡頭狀態，可拖曳平移／滾輪縮放，只畫看得到的範圍。
+// col0/row0＝目前鏡頭左上角對應的世界座標（可以是小數，平移才會滑順），cellPx＝目前縮放(每格幾像素)。
+// ------------------------------------------------------------
+const camera = { col0: 0, row0: 0, cellPx: 20, dragging: false, dragLastX: 0, dragLastY: 0 };
+
+function initCamera() {
+  // 開場置中在市場範圍（用攤位格的bbox），縮放到能看見市場+一點周邊。
+  let minR = Infinity, maxR = -Infinity, minC = Infinity, maxC = -Infinity;
+  for (const s of World.stalls) {
+    minR = Math.min(minR, s.row); maxR = Math.max(maxR, s.row);
+    minC = Math.min(minC, s.col); maxC = Math.max(maxC, s.col);
+  }
+  if (!isFinite(minR)) { minR = maxR = 0; minC = maxC = 0; }
+  const midR = (minR + maxR) / 2, midC = (minC + maxC) / 2;
+  camera.cellPx = 20;
+  camera.col0 = midC - (VIEW_W / camera.cellPx) / 2;
+  camera.row0 = midR - (VIEW_H / camera.cellPx) / 2;
+}
+
+function clampCamera() {
+  const maxCellPx = 60, minCellPx = 2;
+  camera.cellPx = Math.min(maxCellPx, Math.max(minCellPx, camera.cellPx));
+  const colSpan = VIEW_W / camera.cellPx, rowSpan = VIEW_H / camera.cellPx;
+  camera.col0 = Math.min(Math.max(camera.col0, -colSpan / 2), World.COLS - colSpan / 2);
+  camera.row0 = Math.min(Math.max(camera.row0, -rowSpan / 2), World.ROWS - rowSpan / 2);
+}
+
+// cam 參數預設是畫面一的互動鏡頭；畫面二固定用 overviewCamera（見下），不吃拖曳/縮放。
+function visibleColRange(cam = camera) {
+  const c0 = Math.max(0, Math.floor(cam.col0));
+  const c1 = Math.min(World.COLS - 1, Math.ceil(cam.col0 + VIEW_W / cam.cellPx));
+  return [c0, c1];
+}
+function visibleRowRange(cam = camera) {
+  const r0 = Math.max(0, Math.floor(cam.row0));
+  const r1 = Math.min(World.ROWS - 1, Math.ceil(cam.row0 + VIEW_H / cam.cellPx));
+  return [r0, r1];
+}
+function worldToScreenX(c, cam = camera) { return OFFSET_X + (c - cam.col0) * cam.cellPx; }
+function worldToScreenY(r, originY, cam = camera) { return originY + (r - cam.row0) * cam.cellPx; }
+// 跟 worldToScreenX/Y 一樣的换算，但不加 OFFSET_X/originY——畫到離線畫布(panel2Cache)時要用畫布自己的
+// 本地座標(0,0起算)，貼圖(image())時才加位置，見 renderPanel2Cache。
+function localScreenX(c, cam) { return (c - cam.col0) * cam.cellPx; }
+function localScreenY(r, cam) { return (r - cam.row0) * cam.cellPx; }
+
+// 畫面二固定顯示整張地圖縮到最遠（cellPx=minCellPx），不跟畫面一共用鏡頭、不能拖曳/縮放（使用者需求）。
+const overviewCamera = { col0: 0, row0: 0, cellPx: 2 };
+function initOverviewCamera() {
+  overviewCamera.col0 = World.COLS / 2 - (VIEW_W / overviewCamera.cellPx) / 2;
+  overviewCamera.row0 = World.ROWS / 2 - (VIEW_H / overviewCamera.cellPx) / 2;
+}
+
+// 滑鼠是否在畫面一的鏡頭視窗範圍內——畫面二不是互動鏡頭，不用檢查它的範圍。
+function overCameraViewport(mx, my) {
+  const inX = mx >= OFFSET_X && mx <= OFFSET_X + VIEW_W;
+  return inX && my >= OFFSET_Y && my <= OFFSET_Y + VIEW_H;
+}
+function withGridClip(originY, fn) {
+  drawingContext.save();
+  drawingContext.beginPath();
+  drawingContext.rect(OFFSET_X, originY, VIEW_W, VIEW_H);
+  drawingContext.clip();
+  fn();
+  drawingContext.restore();
+}
+
+function parseGridData() {
+  const ROWS = GRID_DATA.gridRows, COLS = GRID_DATA.gridCols;
+  const cellType = [], entryCells = [];
+  for (let r = 0; r < ROWS; r++) {
+    const row = [];
+    for (let c = 0; c < COLS; c++) {
+      // adapter_market_to_website.py 產生：正整數＝攤位id(對照 GRID_DATA.stalls)，
+      // 其餘直接是型別字串（'wall'/'aisle'/'road'/'sidewalk'/...），不是舊版那套 0/-1/-2/-3 magic number。
+      const v = GRID_DATA.cells[r][c];
+      const t = (typeof v === 'number' && v > 0) ? 'stallslot' : v;
+      if (t === 'entry') entryCells.push({ r, c });
+      row.push(t);
+    }
+    cellType.push(row);
+  }
+  const stalls = Object.keys(GRID_DATA.stalls).map(k => {
+    const info = GRID_DATA.stalls[k];
+    return { id: Number(k), row: info.row, col: info.col, code: info.code, side: info.side };
+  });
+  const stallAtRC = {};
+  stalls.forEach(s => { stallAtRC[s.row + ',' + s.col] = s; });
+
+  // 效能：地圖固定不變，走道格清單開場算一次存起來，不要讓 exitStep/bfsFieldToAisle 每次呼叫都重新掃全圖
+  // （見 cellmachine-grid-system-design 記憶 2026-09-14：全圖規模從市場858格擴大到研究範圍266,832格後，
+  // 每次都重掃/重建全圖大小的欄位會真的跑不動，這裡連同 resident.js/tourist.js 的 BFS 早停一起優化）。
+  const aisleCells = [];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (cellType[r][c] === 'aisle') aisleCells.push({ row: r, col: c });
+    }
+  }
+
+  World.ROWS = ROWS; World.COLS = COLS;
+  World.cellType = cellType; World.entryCells = entryCells;
+  World.stalls = stalls; World.stallAtRC = stallAtRC;
+  World.aisleCells = aisleCells;
+}
+
+// 使用者需求(1)：同一個 code（編號）＝同一家店鋪，跨多格；狀態/顏色/生存判定都記在店鋪上（World.shops），
+// 不是個別 grid id——個別格子只留 row/col/code 給移動/繪圖查詢用，用 s.shop 反查所屬店鋪。
+// 順便算好外框（本圖每個 code 剛好是連續矩形區塊），給 drawStallGroupOutlines 直接用，不用逐格描邊。
+function computeStallGroups() {
+  const groups = {};
+  World.stalls.forEach(s => {
+    let g = groups[s.code];
+    if (!g) g = groups[s.code] = { code: s.code, cells: [], state: 'blank', minRow: s.row, maxRow: s.row, minCol: s.col, maxCol: s.col };
+    g.cells.push(s);
+    g.minRow = Math.min(g.minRow, s.row); g.maxRow = Math.max(g.maxRow, s.row);
+    g.minCol = Math.min(g.minCol, s.col); g.maxCol = Math.max(g.maxCol, s.col);
+    s.shop = g;
+  });
+  World.shops = Object.values(groups);
+  World.cellSpace = Cell.buildCellSpace(); // Space Class 陣列（ROWS×COLS），見 20260827_agent_setting.md「Space Class」
+  World.shops.forEach(s => { s.corridorFrontage = Cell.shopFrontage(s); }); // Cell Attribute 彙總，固定值，設定時算一次
+  N_STALLS = World.shops.length;           // 33 家店鋪（不是162格）
+  N_BLANK_INIT = N_STALLS - N_OLD_INIT - N_NEW_INIT;
+}
+
+// ============================================================
+// 3. 全域狀態
+// ============================================================
+let touristTrailHeat = [], residentTrailHeat = [];
+let runSnapshots = []; // 畫面三：每跑完一次10年留一張當下的動線熱度快照（已畫好的離線圖，見 renderSnapshotThumb），跨重設累積、不清空
+
+// 2026-09-14 效能修正：畫面二(動線總覽)顯示的資料只有 trailHeat／trailView 選擇會變，兩者都只在 beat()
+// 或使用者切換下拉時才變——但舊版 draw() 每一幀(60fps)都重新掃一次可見範圍全部格子，不管有沒有變化，
+// 光是這個就是「瀏覽(純拖曳畫面一/什麼都沒在跑)也卡」的主因之一。改成畫到離線畫布快取，dirty 才重畫，
+// draw() 每幀只需要貼一張圖（見 renderPanel2Cache／panel2Dirty 設置點：beat()、resetSimulation()、trailView 變更）。
+let panel2Cache = null, panel2Dirty = true;
+let tick = 0, beatCounter = 0, dayBeatCounter = 0, dayCounter = 0;
+let playing = false;
+let params = { speed: 100, trafficMult: 1.0, trailView: 'tourist', activeEventId: 'none', showTrail: true, showCatchment: true };
+
+// 1km 生活圈圈：直徑1000m半透明白圈，中心＝市場bbox中心。99_Grid 格子＝真實1m（adapter_market_to_website.py
+// 頭注「QGIS 1m grid」，經 QGIS 相鄰格中心點距離量測驗證），半徑500m直接等於500格，不用另外換算。
+const CATCHMENT_RADIUS_CELLS = 500;
+function catchmentCenter() {
+  const bb = World.marketBBox;
+  return bb ? { row: (bb.minRow + bb.maxRow) / 2, col: (bb.minCol + bb.maxCol) / 2 } : null;
+}
+let lastBeatTime = 0;
+let N_STALLS = 0, N_BLANK_INIT = 0; // 由 computeStallGroups() 依店鋪數設定
+
+// isoBBox＝ISO 面板的資料範圍（市場+4個最近街廓，見 computeIsoScope），用來夾住可視範圍掃描/視域裁切，
+// 不是畫面實際看到的範圍——實際看到的範圍由 isoCamera（拖曳/縮放狀態）決定，見 initIsoCamera。
+let isoBBox = null;
+const isoCamera = { originX: 0, originY: 0, u: 8, dragging: false, dragLastX: 0, dragLastY: 0 };
+
+// ============================================================
+// 4. p5 生命週期
+// ============================================================
+function setup() {
+  parseGridData();
+  computeStallGroups();
+  computeMarketBBox();
+  computeIsoScope();
+  initIsoCamera();
+  initCamera();
+  initOverviewCamera();
+  // 畫布寬度固定用 VIEW_W（鏡頭視窗），不再是 World.COLS * CELL——見上面 VIEW_W/VIEW_H 說明。
+  const cnv = createCanvas(OFFSET_X * 2 + VIEW_W, canvasHeightFor(runSnapshots.length));
+  cnv.parent('canvas-wrap');
+  textFont('Microsoft JhengHei, sans-serif');
+  sidewalkHatchPattern = makeHatchPattern('#a0aec0', '#2d3748');  // 人行道：灰色斜線
+  crosswalkHatchPattern = makeHatchPattern('#ffffff', '#3a3a3a'); // 斑馬線：白色斜線
+  visionHighlightPattern = makeHatchOverlayPattern('#ffffff');    // 20260914 需求#1：視域高亮改用白色斜線疊圖
+
+  bindUI();
+  bindCameraControls(cnv);
+  bindIsoCameraControls(cnv);
+  resetSimulation();
+  lastBeatTime = millis();
+}
+
+// 2026-09-14：人行道/斑馬線改用斜線紋理（不是純色填滿）——用一張小尺寸離線畫布畫一條對角線，
+// 交給 canvas 原生的 createPattern 無縫平鋪，不用每格自己算線段座標，畫起來也比逐格畫線快。
+let sidewalkHatchPattern = null, crosswalkHatchPattern = null, visionHighlightPattern = null;
+function makeHatchPattern(lineColor, bgColor, size = 8) {
+  const pg = createGraphics(size, size);
+  pg.background(bgColor);
+  pg.stroke(lineColor);
+  pg.strokeWeight(1.2);
+  pg.line(0, size, size, 0);
+  pg.line(-size / 2, size / 2, size / 2, -size / 2); // 補圖磚邊界，讓斜線在tile接縫處連續不斷開
+  pg.line(size / 2, size * 1.5, size * 1.5, size / 2);
+  return drawingContext.createPattern(pg.canvas, 'repeat');
+}
+
+// 跟 makeHatchPattern 差在背景透明（pg.clear() 不是 pg.background()）——疊在別的格子上面時
+// 只有白色斜線本身可見，底下格子原本的顏色不會被蓋掉，給「高亮」這種疊加效果用（決議#1）。
+function makeHatchOverlayPattern(lineColor, size = 8) {
+  const pg = createGraphics(size, size);
+  pg.clear();
+  pg.stroke(lineColor);
+  pg.strokeWeight(1.2);
+  pg.line(0, size, size, 0);
+  pg.line(-size / 2, size / 2, size / 2, -size / 2);
+  pg.line(size / 2, size * 1.5, size * 1.5, size / 2);
+  return drawingContext.createPattern(pg.canvas, 'repeat');
+}
+
+// 市場屋頂遮罩：把手繪/QGIS 判定為市場內部的格型（wall/aisle/stallslot/facility/entry）取
+// bounding box，開場算一次（市場範圍不會在跑模擬時變動）。
+function computeMarketBBox() {
+  const MARKET_TYPES = new Set(['wall', 'aisle', 'stallslot', 'facility', 'entry']);
+  let minR = Infinity, maxR = -Infinity, minC = Infinity, maxC = -Infinity;
+  for (let r = 0; r < World.ROWS; r++) {
+    for (let c = 0; c < World.COLS; c++) {
+      if (MARKET_TYPES.has(World.cellType[r][c])) {
+        if (r < minR) minR = r; if (r > maxR) maxR = r;
+        if (c < minC) minC = c; if (c > maxC) maxC = c;
+      }
+    }
+  }
+  World.marketBBox = isFinite(minR) ? { minRow: minR, maxRow: maxR, minCol: minC, maxCol: maxC } : null;
+}
+
+// 街廓偵測（20260914 使用者需求#4：顯示範圍＝市場所在街廓+最近的4個）：building/block 型別
+// （加上市場自己的wall/facility/stallslot/aisle/entry內部型別）連通即算同一個街廓，被
+// road/sidewalk/crosswalk/outside/light_rail_track 隔開。開場算一次（全圖266,832格 flood fill，
+// 跟 World.aisleCells 開場掃描同一等級的成本，不會每幀重算）。
+function findCityBlocks() {
+  const visited = World.makeField(false);
+  const blocks = [];
+  for (let r = 0; r < World.ROWS; r++) {
+    for (let c = 0; c < World.COLS; c++) {
+      if (visited[r][c] || !CITY_BLOCK_TYPES.has(World.cellType[r][c])) { visited[r][c] = true; continue; }
+      let minRow = r, maxRow = r, minCol = c, maxCol = c, count = 0;
+      const q = [[r, c]]; visited[r][c] = true;
+      let head = 0;
+      while (head < q.length) {
+        const [cr, cc] = q[head++]; count++;
+        if (cr < minRow) minRow = cr; if (cr > maxRow) maxRow = cr;
+        if (cc < minCol) minCol = cc; if (cc > maxCol) maxCol = cc;
+        for (const [dr, dc] of World.DIRS4) {
+          const nr = cr + dr, nc = cc + dc;
+          if (nr < 0 || nr >= World.ROWS || nc < 0 || nc >= World.COLS || visited[nr][nc]) continue;
+          if (!CITY_BLOCK_TYPES.has(World.cellType[nr][nc])) continue;
+          visited[nr][nc] = true; q.push([nr, nc]);
+        }
+      }
+      blocks.push({ minRow, maxRow, minCol, maxCol, count });
+    }
+  }
+  return blocks;
+}
+
+// ISO 顯示範圍＝市場所在街廓 ∪ 離它（街廓中心點距離）最近的4個街廓，四周留2格路面當邊界。
+// isoBBox 只是「資料範圍」，用來夾住視域裁切/可視範圍掃描邊界，實際鏡頭框住哪一塊看 isoCamera。
+function computeIsoScope() {
+  const bb = World.marketBBox;
+  if (!bb) { isoBBox = null; return; }
+  const blocks = findCityBlocks();
+  const midR = (bb.minRow + bb.maxRow) / 2, midC = (bb.minCol + bb.maxCol) / 2;
+  const marketBlock = blocks.find(b => midR >= b.minRow && midR <= b.maxRow && midC >= b.minCol && midC <= b.maxCol)
+    || { minRow: bb.minRow, maxRow: bb.maxRow, minCol: bb.minCol, maxCol: bb.maxCol };
+  const others = blocks.filter(b => b !== marketBlock && b.count >= MIN_CITY_BLOCK_CELLS);
+  const mcr = (marketBlock.minRow + marketBlock.maxRow) / 2, mcc = (marketBlock.minCol + marketBlock.maxCol) / 2;
+  others.forEach(b => { b.dist = Math.hypot((b.minRow + b.maxRow) / 2 - mcr, (b.minCol + b.maxCol) / 2 - mcc); });
+  others.sort((a, b) => a.dist - b.dist);
+  let minRow = marketBlock.minRow, maxRow = marketBlock.maxRow, minCol = marketBlock.minCol, maxCol = marketBlock.maxCol;
+  others.slice(0, 4).forEach(b => {
+    minRow = Math.min(minRow, b.minRow); maxRow = Math.max(maxRow, b.maxRow);
+    minCol = Math.min(minCol, b.minCol); maxCol = Math.max(maxCol, b.maxCol);
+  });
+  const pad = 2;
+  isoBBox = {
+    minRow: Math.max(0, minRow - pad), maxRow: Math.min(World.ROWS - 1, maxRow + pad),
+    minCol: Math.max(0, minCol - pad), maxCol: Math.min(World.COLS - 1, maxCol + pad),
+  };
+}
+
+// 高度：1格=1公尺（使用者需求#1），px/公尺 隨縮放(isoCamera.u)變動——跟水平「每格半寬」(u/2)同一把尺，
+// 這樣建築擠出的視覺比例在任何縮放下都一致，不是另外訂一個固定像素值。
+function isoHeightPx(meters) { return meters * isoCamera.u / 2; }
+
+// ISO 鏡頭（20260914 使用者需求#2：要能縮放/拖曳看到走道本身）。originX/Y 直接是
+// isoProject 用的畫布原點（h=0,row=0,col=0 的投影位置），拖曳＝直接平移這兩個值，
+// 縮放＝改 u 再反推 originX/Y 讓滑鼠指到的世界點不動（zoom-to-cursor）。
+function initIsoCamera() {
+  const bb = World.marketBBox;
+  if (!bb) return;
+  const cr = (bb.minRow + bb.maxRow) / 2, cc = (bb.minCol + bb.maxCol) / 2;
+  const rows = bb.maxRow - bb.minRow + 3, cols = bb.maxCol - bb.minCol + 3; // 市場外圍留一點路面
+  const maxHm = Math.max(0, ...Object.values(ISO_HEIGHT_M));
+  // 寬度用到的像素/u＝(rows+cols-2)/2（halfW=u/2）；高度用到的像素/u＝(rows+cols-2)/4+maxHm/2（halfH=u/4＋擠出）。
+  const wPerU = (rows + cols - 2) / 2, hPerU = (rows + cols - 2) / 4 + maxHm / 2;
+  isoCamera.u = Math.max(ISO_U_MIN, Math.min(ISO_U_MAX, VIEW_W * 0.85 / wPerU, ISO_H * 0.85 / hPerU));
+  isoCamera.originX = OFFSET_X + VIEW_W / 2 - (cc - cr) * isoCamera.u / 2;
+  isoCamera.originY = ISO_Y0 + ISO_H / 2 - (cc + cr) * isoCamera.u / 4;
+}
+
+// (row,col,h) → 畫布座標。h＝擠出高度(像素，isoHeightPx() 換算)，越高越往畫面上方(y變小)。
+function isoProject(row, col, h) {
+  return { x: isoCamera.originX + (col - row) * isoCamera.u / 2, y: isoCamera.originY + (col + row) * isoCamera.u / 4 - h };
+}
+
+// 目前鏡頭實際看得到的 row/col 範圍（夾在 isoBBox 內）：面板四個角＋往下留一點高度緩衝（給擠出的
+// 建築從畫面下緣冒出來的情況）反推世界座標範圍，畫地形只畫這個範圍，不管 isoBBox 資料範圍多大
+// （決議#4 把範圍擴大到4個街廓後，若每幀都畫整個 isoBBox 會不管縮放多少都很貴，見 drawIsoTerrain）。
+function isoVisibleRowColRange() {
+  if (!isoBBox) return { minRow: 0, maxRow: -1, minCol: 0, maxCol: -1 };
+  const halfW = isoCamera.u / 2, halfH = isoCamera.u / 4;
+  const maxHm = Math.max(0, ...Object.values(ISO_HEIGHT_M));
+  const heightPad = isoHeightPx(maxHm) + halfH * 4;
+  let minRow = Infinity, maxRow = -Infinity, minCol = Infinity, maxCol = -Infinity;
+  for (const px of [OFFSET_X, OFFSET_X + VIEW_W]) {
+    for (const py of [ISO_Y0, ISO_Y0 + ISO_H + heightPad]) {
+      const A = (px - isoCamera.originX) / halfW, B = (py - isoCamera.originY) / halfH;
+      const col = (A + B) / 2, row = (B - A) / 2;
+      minRow = Math.min(minRow, row); maxRow = Math.max(maxRow, row);
+      minCol = Math.min(minCol, col); maxCol = Math.max(maxCol, col);
+    }
+  }
+  return {
+    minRow: Math.max(isoBBox.minRow, Math.floor(minRow) - 1), maxRow: Math.min(isoBBox.maxRow, Math.ceil(maxRow) + 1),
+    minCol: Math.max(isoBBox.minCol, Math.floor(minCol) - 1), maxCol: Math.min(isoBBox.maxCol, Math.ceil(maxCol) + 1),
+  };
+}
+
+function overIsoViewport(mx, my) {
+  return mx >= OFFSET_X && mx <= OFFSET_X + VIEW_W && my >= ISO_Y0 && my <= ISO_Y0 + ISO_H;
+}
+
+// ponytail：拖曳範圍不夾限（跟 clampCamera() 不同），拖太遠只是看到空黑畫面，滾輪縮放有夾
+// ISO_U_MIN/MAX——市場+4街廓通常滾一兩下就找得回來，之後真的常迷失再補邊界夾限。
+function bindIsoCameraControls(cnv) {
+  cnv.mousePressed(() => {
+    if (!overIsoViewport(mouseX, mouseY)) return;
+    isoCamera.dragging = true; isoCamera.dragLastX = mouseX; isoCamera.dragLastY = mouseY;
+  });
+  cnv.mouseReleased(() => { isoCamera.dragging = false; });
+  cnv.elt.addEventListener('wheel', (e) => {
+    const rect = cnv.elt.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    if (!overIsoViewport(mx, my)) return;
+    e.preventDefault();
+    const halfW = isoCamera.u / 2, halfH = isoCamera.u / 4;
+    const A = (mx - isoCamera.originX) / halfW, B = (my - isoCamera.originY) / halfH;
+    const col = (A + B) / 2, row = (B - A) / 2; // 滑鼠目前指到的世界座標(用h=0地面近似)
+    isoCamera.u = Math.max(ISO_U_MIN, Math.min(ISO_U_MAX, isoCamera.u * (e.deltaY > 0 ? 0.9 : 1.1)));
+    isoCamera.originX = mx - (col - row) * isoCamera.u / 2;
+    isoCamera.originY = my - (col + row) * isoCamera.u / 4;
+  }, { passive: false });
+}
+
+function updateIsoCameraDrag() {
+  if (!isoCamera.dragging) return;
+  if (!mouseIsPressed) { isoCamera.dragging = false; return; }
+  isoCamera.originX += mouseX - isoCamera.dragLastX;
+  isoCamera.originY += mouseY - isoCamera.dragLastY;
+  isoCamera.dragLastX = mouseX; isoCamera.dragLastY = mouseY;
+}
+
+function withIsoClip(fn) {
+  drawingContext.save();
+  drawingContext.beginPath();
+  drawingContext.rect(OFFSET_X, ISO_Y0, VIEW_W, ISO_H);
+  drawingContext.clip();
+  fn();
+  drawingContext.restore();
+}
+
+// 市場有屋頂：淡紅色低透明度遮罩蓋在市場範圍上方，滑鼠移進這塊範圍就讓遮罩消失（可以看到底下實際畫面）。
+// 只蓋畫面一（互動主畫面），畫面二是動線總覽不需要這層。
+function drawMarketRoofOverlay() {
+  if (!World.marketBBox) return;
+  const bb = World.marketBBox;
+  const x0 = worldToScreenX(bb.minCol), y0 = worldToScreenY(bb.minRow, OFFSET_Y);
+  const x1 = worldToScreenX(bb.maxCol + 1), y1 = worldToScreenY(bb.maxRow + 1, OFFSET_Y);
+  const hovering = mouseX >= x0 && mouseX <= x1 && mouseY >= y0 && mouseY <= y1;
+  if (hovering) return;
+  noStroke();
+  fill(255, 90, 90, 45);
+  rect(x0, y0, x1 - x0, y1 - y0);
+}
+
+// 1km 生活圈圈（畫面一，2D）：中心＝市場bbox中心，半徑500格＝500m（見 CATCHMENT_RADIUS_CELLS 註解）。
+// 半透明白圈，用來目測市場周邊生活圈範圍，跟 drawMarketRoofOverlay 一樣畫在市場圖層最上面。
+function drawCatchmentCircle() {
+  if (!params.showCatchment) return;
+  const ctr = catchmentCenter();
+  if (!ctr) return;
+  const x = worldToScreenX(ctr.col), y = worldToScreenY(ctr.row, OFFSET_Y);
+  const rPx = CATCHMENT_RADIUS_CELLS * camera.cellPx;
+  noStroke();
+  fill(255, 255, 255, 60);
+  ellipse(x, y, rPx * 2, rPx * 2);
+}
+
+// 鏡頭拖曳(平移)／滾輪(縮放)：只在畫面一/二的視窗範圍內生效，避免跟右側控制面板的表單元件搶事件。
+function bindCameraControls(cnv) {
+  cnv.mousePressed(() => {
+    if (!overCameraViewport(mouseX, mouseY)) return;
+    camera.dragging = true; camera.dragLastX = mouseX; camera.dragLastY = mouseY;
+  });
+  cnv.mouseReleased(() => { camera.dragging = false; });
+  // 綁在原生 DOM 元素上直接讀 event.deltaY，不透過 p5 的 mouseWheel() 包一層——
+  // 2026-09-14 修正：用 p5 的 e.delta 時只會放大不會縮小（bug：那個屬性在這個 p5 版本
+  // 不是預期的正負號，等於 e.delta 永遠讀到非正值，條件式永遠走同一個分支）。
+  // deltaY 是瀏覽器原生標準屬性，滾輪往下(遠離自己)＝deltaY>0＝縮小，反過來滾＝放大。
+  cnv.elt.addEventListener('wheel', (e) => {
+    // 這裡繞過 p5 的事件包裝直接讀原生 event，mouseX/mouseY 這兩個 p5 全域變數不保證
+    // 在單純的 wheel 事件當下是最新的（p5 主要靠 mousemove 更新它們），所以座標自己從
+    // event.clientX/Y 換算，不要依賴 mouseX/mouseY。
+    const rect = cnv.elt.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    if (!overCameraViewport(mx, my)) return; // 不在鏡頭範圍內就讓頁面正常捲動
+    e.preventDefault();
+    // 縮放時保持滑鼠游標指到的世界座標不動（zoom-to-cursor），比固定畫面中心縮放好用。
+    // 畫面二已經不是互動鏡頭（overCameraViewport 只認畫面一），這裡不用再判斷 originY 是哪個畫面。
+    const worldC = camera.col0 + (mx - OFFSET_X) / camera.cellPx;
+    const worldR = camera.row0 + (my - OFFSET_Y) / camera.cellPx;
+    camera.cellPx *= (e.deltaY > 0 ? 0.9 : 1.1);
+    clampCamera();
+    camera.col0 = worldC - (mx - OFFSET_X) / camera.cellPx;
+    camera.row0 = worldR - (my - OFFSET_Y) / camera.cellPx;
+    clampCamera();
+  }, { passive: false });
+}
+
+function updateCameraDrag() {
+  if (!camera.dragging) return;
+  if (!mouseIsPressed) { camera.dragging = false; return; }
+  const dx = mouseX - camera.dragLastX, dy = mouseY - camera.dragLastY;
+  camera.col0 -= dx / camera.cellPx;
+  camera.row0 -= dy / camera.cellPx;
+  camera.dragLastX = mouseX; camera.dragLastY = mouseY;
+  clampCamera();
+}
+
+function draw() {
+  if (playing && millis() - lastBeatTime > params.speed) {
+    beat();
+    lastBeatTime = millis();
+  }
+  updateCameraDrag();
+  updateIsoCameraDrag();
+  background(0);
+
+  // 畫面一：原本的模擬器（攤位營業狀態＋行人）。20260914：拿掉狀態數量隨時間變化的折線圖（drawChart）。
+  withGridClip(OFFSET_Y, () => {
+    drawGrid();
+    drawStallGroupOutlines(OFFSET_Y);
+    Tourist.drawVisionHighlight2D(); // 20260914 需求#2：2D 也用同一份可見格資料做高亮呈現
+    Tourist.draw(window);
+    Resident.draw(window);
+    drawMarketRoofOverlay();
+    drawCatchmentCircle();
+  });
+  updateStatsDisplay();
+
+  // 新版面第二格：ISO（2.5D 等角展示，20260914 grilling 決議）。
+  drawIsoScene();
+
+  // 時間軸進度條。
+  drawTimeline();
+
+  // 畫面二：只有格子＋只顯示軌跡，不顯示攤位營業狀態、不畫行人。固定用 overviewCamera，不能拖曳/縮放。
+  // 效能：格子本身用離線快取(panel2Cache)，dirty 才重畫，見 panel2Dirty 宣告處的說明；外框(33家店鋪)量小，維持每幀直接畫。
+  drawPanel2Label();
+  if (panel2Dirty) renderPanel2Cache();
+  withGridClip(PANEL2_Y0, () => {
+    image(panel2Cache, OFFSET_X, PANEL2_Y0);
+    drawStallGroupOutlines(PANEL2_Y0, overviewCamera);
+  });
+
+  // 畫面三：歷史軌跡快照（使用者需求：跑完一次10年留一張，3個一列依序排下去）。
+  drawPanel3Label();
+  drawRunSnapshots();
+}
+
+// ============================================================
+// 5. 初始化 / 重設
+// ============================================================
+function resetSimulation() {
+  World.shops.forEach(sh => { sh.state = 'blank'; });
+
+  // old/new 都是固定名單，不隨機分配；其餘店鋪維持上面設好的 blank。
+  const oldShops = World.shops.filter(sh => OLD_FIXED_CODES.includes(sh.code));
+  const newShops = World.shops.filter(sh => NEW_FIXED_CODES.includes(sh.code));
+
+  newShops.forEach(sh => { sh.state = 'new'; VendorNew.initStall(sh); });
+  oldShops.forEach(sh => { sh.state = 'old'; VendorOld.initStall(sh); });
+
+  Tourist.reset();
+  Resident.reset();
+  touristTrailHeat = World.makeField(0);
+  residentTrailHeat = World.makeField(0);
+  tick = 0; beatCounter = 0; dayBeatCounter = 0; dayCounter = 0;
+  panel2Dirty = true; // trailHeat 歸零了，畫面二快取要跟著重畫
+}
+
+// ============================================================
+// 6. 主迴圈：beat（人流/動線，比tick細） / tick（每100個beat一次，狀態轉換）
+//    / day（每1600個beat一次，行人視覺刷新節奏，跟tick並行、互不取代）
+// ============================================================
+function beat() {
+  if (tick >= MAX_TICKS) return; // 時間線總長10年為止，跑到這裡就不再前進
+
+  spawnPedestriansContinuous();
+  Tourist.move(touristTrailHeat);
+  Resident.move(residentTrailHeat);
+  panel2Dirty = true; // trailHeat 剛剛變了，畫面二快取要跟著重畫（見 panel2Cache 宣告處）
+
+  beatCounter++;
+  if (beatCounter >= K_BEATS_PER_TICK) { beatCounter = 0; stepTick(); }
+
+  dayBeatCounter++;
+  if (dayBeatCounter >= DAY_LENGTH_BEATS) { dayBeatCounter = 0; endOfDay(); }
+}
+
+function stepTick() {
+  VendorOld.stepTick();
+  VendorNew.stepTick();
+  VendorIdle.stepTick();
+  tick++;
+  if (tick >= MAX_TICKS) {
+    playing = false; // 自動停止，不用使用者手動暫停
+    captureRunSnapshot(); // 使用者需求：跑完一次10年，留一張畫面三的快照
+  }
+}
+
+// 畫面三快照：只存 aisle 格子的合計熱度（跟畫面一同一份 touristTrailHeat+residentTrailHeat），
+// 其餘格子（牆/設施/入口/攤位）不需要，繪圖時本來就只畫有軌跡的格子。
+// 快照當下就畫成一張離線圖存起來（見 renderSnapshotThumb），之後每幀不用再重新掃一次全圖。
+function captureRunSnapshot() {
+  const grid = World.makeField(0);
+  for (let r = 0; r < World.ROWS; r++) {
+    for (let c = 0; c < World.COLS; c++) {
+      if (World.cellType[r][c] === 'aisle') grid[r][c] = touristTrailHeat[r][c] + residentTrailHeat[r][c];
+    }
+  }
+  runSnapshots.push(renderSnapshotThumb(grid));
+  resizeCanvas(width, canvasHeightFor(runSnapshots.length)); // 快照變多列數變高，畫布跟著長
+}
+
+// 一天結束：清空當天行人、從入口重新生成新一天的人潮（下個beat的連續生成自然接手）、dayCounter+1。
+// trailHeat 不歸零，沿用自然衰減／累加機制跨天持續累積。
+function endOfDay() {
+  Tourist.pedestrians = [];
+  Resident.pedestrians = [];
+  dayCounter++;
+}
+
+// 外部事件（人口與生成，見 20260823_simulator_setting.md「人口與生成」）——固定期間的陡降/陡升，倍率直接乘進生成公式。
+// 真實案例：三級警戒＝2021台灣疫情警戒，人流管制/提前休市，人潮驟減；青創行銷加碼期＝鹽一市場真實「青銀共市」改造案，整修+招商後話題性人流暴增。
+const EVENTS = [
+  { id: 'warning',   name: '三級警戒式人流管制', startTick: 8, endTick: 12, spawnMultiplier: 0.3 },
+  { id: 'marketing', name: '青創行銷加碼期',     startTick: 8, endTick: 12, spawnMultiplier: 1.8 },
+];
+// 三選一（互斥），見控制面板「外部事件」radio；'none'＝不套用任何事件。
+function currentEventMultiplier(t) {
+  const active = EVENTS.find(e => e.id === params.activeEventId && t >= e.startTick && t <= e.endTick);
+  return active ? active.spawnMultiplier : 1;
+}
+
+// 每tick生成量換算成每beat的期望值，用機率骰出來，視覺上是不斷有人冒出來；
+// trafficMult 跟 currentEventMultiplier() 都直接乘在期望生成量上。MAX_PEDESTRIANS 是同時存在的行人數上限，防止畫面/效能爆量。
+function spawnPedestriansContinuous() {
+  const total = Tourist.pedestrians.length + Resident.pedestrians.length;
+  if (World.entryCells.length === 0 || total >= MAX_PEDESTRIANS) return;
+  const newCount = World.shops.filter(s => s.state === 'new').length;
+  const oldCount = World.shops.filter(s => s.state === 'old').length;
+  const eventMult = currentEventMultiplier(tick);
+  const kTouristPerTick = newCount > 0 ? Math.max(1, Math.round(0.3 * newCount * params.trafficMult * eventMult)) : 0;
+  const kResidentPerTick = oldCount > 0 ? Math.max(1, Math.round(0.3 * oldCount * params.trafficMult * eventMult)) : 0;
+  Tourist.spawnExpected(kTouristPerTick / K_BEATS_PER_TICK);
+  Resident.spawnExpected(kResidentPerTick / K_BEATS_PER_TICK);
+}
+
+// ============================================================
+// 7. 繪圖（p5.js，白色版面）
+// ============================================================
+// 離散三級色階：低1–9次／中10–24次／高25次以上，不做漸層或透明度過渡。
+function trailTier(heat, tiers) {
+  if (heat >= 25) return tiers.high;
+  if (heat >= 10) return tiers.mid;
+  if (heat >= 1) return tiers.low;
+  return null;
+}
+
+// 同一編號（同一家店鋪）的真實範圍：3pt 白色虛線框，蓋在格子上面。座標永遠是矩形（本圖每個編號
+// 剛好是連續2列×N欄的區塊），直接用外框角落算，不用逐格描邊。
+function drawStallGroupOutlines(originY, cam = camera) {
+  drawingContext.save();
+  drawingContext.setLineDash([6, 4]);
+  drawingContext.lineWidth = 3;
+  drawingContext.strokeStyle = '#ffffff';
+  for (const g of World.shops) {
+    const x = worldToScreenX(g.minCol, cam);
+    const y = worldToScreenY(g.minRow, originY, cam);
+    const w = (g.maxCol - g.minCol + 1) * cam.cellPx - 1;
+    const h = (g.maxRow - g.minRow + 1) * cam.cellPx - 1;
+    drawingContext.strokeRect(x, y, w, h);
+  }
+  drawingContext.restore();
+}
+
+// ISO：市場+最近4個街廓的 2.5D 等角展示，跟畫面一同步（同一個 tick/同一批行人）。可拖曳/滾輪縮放
+// （20260914 使用者需求#2/#4）。色塊沿用 2D 版同一組配色，1格=1公尺，高度用合理常識給值（非真實樓高資料）。
+function drawIsoScene() {
+  noStroke(); fill(255);
+  textSize(13); textAlign(LEFT, BOTTOM);
+  text('ISO — 市場+鄰近街廓等角展示（可拖曳/滾輪縮放；樓高為合理推估，非真實資料）', OFFSET_X, ISO_Y0 - 8);
+  if (!isoBBox) { noFill(); stroke('#4a5568'); rect(OFFSET_X, ISO_Y0, VIEW_W, ISO_H); noStroke(); return; }
+  withIsoClip(() => {
+    fill('#000000'); rect(OFFSET_X, ISO_Y0, VIEW_W, ISO_H);
+    drawIsoTerrain();
+    Tourist.drawVisionHighlightIso(); // 視域高亮疊在地形之上、行人標記之下（20260914 需求#1：高亮呈現）
+    Tourist.drawIso(window);
+    Resident.drawIso(window);
+    drawIsoMarketRoof(); // 市場雙斜屋頂：最後畫，半透明蓋在最上面（20260914 需求#4）
+    drawIsoCatchmentCircle();
+  });
+}
+
+// 依 cellType 決定色塊：跟 drawGrid()/drawTrailOnlyGrid() 同一組色（STALL_COLOR/NEW_TYPE_COLOR），
+// ISO 先不疊動線熱度／店鋪編號文字，保持「簡單色塊」（決議：初版不需要精緻）。
+function isoCellColor(r, c) {
+  const t = World.cellType[r][c];
+  if (t === 'stallslot') return STALL_COLOR[World.stallAtRC[r + ',' + c].shop.state];
+  if (t === 'entry' || t === 'light_rail_entrance') return '#c6f6d5';
+  if (t === 'wall' || t === 'facility') return '#4a5568';
+  if (t === 'aisle') return '#2d3748';
+  return NEW_TYPE_COLOR[t] || '#14161c';
+}
+
+function isoShade(hex, factor, alpha = 1) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.round(((n >> 16) & 255) * factor), g = Math.round(((n >> 8) & 255) * factor), b = Math.round((n & 255) * factor);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function isoDrawPoly(pts) {
+  drawingContext.beginPath();
+  drawingContext.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) drawingContext.lineTo(pts[i].x, pts[i].y);
+  drawingContext.closePath();
+  drawingContext.fill();
+}
+
+// 判斷 (r,c) 跟它的鄰格 (nr,nc) 是不是同一個「該合併成一體」的量體：型別要一樣，攤位(stallslot)
+// 還要同一家店鋪（World.shops，不同店鋪即使緊鄰也要看得出分界）。給 drawIsoCell 判斷要不要畫
+// 內部的側面牆——同一體的鄰格之間不畫牆，才會看起來是一整塊，不是一格一格分開的方塊堆。
+function isoSameMass(r, c, nr, nc, t) {
+  if (nr < 0 || nr >= World.ROWS || nc < 0 || nc >= World.COLS) return false;
+  if (World.cellType[nr][nc] !== t) return false;
+  if (t === 'stallslot') return World.stallAtRC[r + ',' + c].shop === World.stallAtRC[nr + ',' + nc].shop;
+  return true;
+}
+
+// 一格＝一個擠出的方塊：頂面(h高度) + 南/東兩個可見側面(深淺模擬光影，不做真的光源運算)。
+// 側面只畫在「跟鄰格不是同一體」的邊界上（見 isoSameMass）——同型別/同店鋪的鄰格中間不畫牆，
+// 連續的攤位/建築/牆面才會呈現一整塊的量體，不是每一格都看得到獨立的方塊邊界（使用者需求）。
+// 平面格型(h=0，如road/sidewalk/aisle)只有頂面，沒有側面。
+function drawIsoCell(r, c) {
+  const t = World.cellType[r][c];
+  const h = isoHeightPx(ISO_HEIGHT_M[t] || 0);
+  const col = isoCellColor(r, c);
+  const alpha = ISO_TRANSLUCENT_TYPES.has(t) ? ISO_TRANSLUCENT_ALPHA : 1; // 需求#5：building/wall/stallslot 半透明
+  const TL = isoProject(r, c, h), TR = isoProject(r, c + 1, h), BR = isoProject(r + 1, c + 1, h), BL = isoProject(r + 1, c, h);
+  if (t === 'sidewalk') drawingContext.fillStyle = sidewalkHatchPattern;
+  else if (t === 'crosswalk') drawingContext.fillStyle = crosswalkHatchPattern;
+  else drawingContext.fillStyle = isoShade(col, 1, alpha);
+  isoDrawPoly([TL, TR, BR, BL]);
+  if (h > 0) {
+    const BL0 = isoProject(r + 1, c, 0), BR0 = isoProject(r + 1, c + 1, 0), TR0 = isoProject(r, c + 1, 0);
+    if (!isoSameMass(r, c, r + 1, c, t)) {
+      drawingContext.fillStyle = isoShade(col, 0.72, alpha);
+      isoDrawPoly([BL, BR, BR0, BL0]); // 南面
+    }
+    if (!isoSameMass(r, c, r, c + 1, t)) {
+      drawingContext.fillStyle = isoShade(col, 0.52, alpha);
+      isoDrawPoly([TR, BR, BR0, TR0]); // 東面
+    }
+  }
+}
+
+// 市場雙斜屋頂（人字頂，20260914 需求#4）：屋脊沿市場長邊(col方向)走，跟真實雙斜屋頂常見蓋法一致；
+// 用虛線示意屋脊/屋簷/斜面邊線＋半透明色塊蓋住兩片屋頂斜面，概念跟2D版 drawMarketRoofOverlay()
+// 一樣（市場有屋頂，但看得穿），只是這裡用立體雙斜面示意，不是單純一片平面遮罩。
+function drawIsoMarketRoof() {
+  const bb = World.marketBBox;
+  if (!bb) return;
+  const hEave = isoHeightPx(ISO_HEIGHT_M.wall); // 屋簷＝牆頂高度
+  const hRidge = isoHeightPx(ISO_HEIGHT_M.wall + 1.2); // 屋脊比牆頂再高1.2m（示意值，非真實資料）
+  const midRow = (bb.minRow + bb.maxRow) / 2;
+  const nearEave0 = isoProject(bb.minRow, bb.minCol, hEave), nearEave1 = isoProject(bb.minRow, bb.maxCol, hEave);
+  const farEave0 = isoProject(bb.maxRow, bb.minCol, hEave), farEave1 = isoProject(bb.maxRow, bb.maxCol, hEave);
+  const ridge0 = isoProject(midRow, bb.minCol, hRidge), ridge1 = isoProject(midRow, bb.maxCol, hRidge);
+
+  drawingContext.fillStyle = 'rgba(255,120,120,0.28)'; // 跟2D roof overlay同一個「淡紅半透明」語彙
+  isoDrawPoly([nearEave0, nearEave1, ridge1, ridge0]);
+  isoDrawPoly([ridge0, ridge1, farEave1, farEave0]);
+
+  drawingContext.save();
+  drawingContext.setLineDash([6, 4]);
+  drawingContext.strokeStyle = 'rgba(255,255,255,0.85)';
+  drawingContext.lineWidth = 1.5;
+  const edges = [[ridge0, ridge1], [nearEave0, nearEave1], [farEave0, farEave1],
+    [ridge0, nearEave0], [ridge0, farEave0], [ridge1, nearEave1], [ridge1, farEave1]];
+  for (const [a, b] of edges) {
+    drawingContext.beginPath();
+    drawingContext.moveTo(a.x, a.y); drawingContext.lineTo(b.x, b.y);
+    drawingContext.stroke();
+  }
+  drawingContext.restore();
+}
+
+// 1km 生活圈圈（ISO 版，跟 2D 的 drawCatchmentCircle 同一個中心/半徑）：row/col 空間裡的正圓，
+// 經 2:1 等角投影會變橢圓，所以不能直接拿一個 ellipse() 畫，用取樣點沿圓周算 isoProject 再連成
+// 多邊形；貼地畫（h=0），跟 drawIsoTerrain 的地面同一個高度基準。
+function drawIsoCatchmentCircle() {
+  if (!params.showCatchment) return;
+  const ctr = catchmentCenter();
+  if (!ctr) return;
+  const N = 72;
+  const pts = [];
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    pts.push(isoProject(ctr.row + CATCHMENT_RADIUS_CELLS * Math.sin(a), ctr.col + CATCHMENT_RADIUS_CELLS * Math.cos(a), 0));
+  }
+  drawingContext.fillStyle = 'rgba(255,255,255,0.24)';
+  isoDrawPoly(pts);
+}
+
+// 畫家演算法：依對角線 d=(r-minRow)+(c-minCol) 由小到大畫，d 越大在畫面上越靠下/靠前，
+// 確保有高度的方塊會正確蓋住後面(d較小)的格子。只畫目前鏡頭看得到的範圍（isoVisibleRowColRange），
+// 不是整個 isoBBox（市場+4街廓可能有上萬格，縮放/拖曳後大部分根本不在畫面內，見該函式註解）。
+function drawIsoTerrain() {
+  const bb = isoVisibleRowColRange();
+  if (bb.maxRow < bb.minRow || bb.maxCol < bb.minCol) return;
+  const maxD = (bb.maxRow - bb.minRow) + (bb.maxCol - bb.minCol);
+  for (let d = 0; d <= maxD; d++) {
+    for (let r = bb.minRow; r <= bb.maxRow; r++) {
+      const c = bb.minCol + (d - (r - bb.minRow));
+      if (c < bb.minCol || c > bb.maxCol) continue;
+      drawIsoCell(r, c);
+    }
+  }
+}
+
+function drawPanel2Label() {
+  noStroke(); fill(255);
+  textSize(13); textAlign(LEFT, BOTTOM);
+  text('動線熱度總覽（只顯示軌跡，不顯示攤位營業狀態）', OFFSET_X, PANEL2_Y0 - 8);
+}
+
+// 畫面三：歷史軌跡快照，每跑完一次10年（stepTick 裡 captureRunSnapshot()）留一張，3個一列依序排下去。
+function drawPanel3Label() {
+  noStroke(); fill(255);
+  textSize(13); textAlign(LEFT, BOTTOM);
+  text('歷史軌跡快照（每跑完一次10年留一張，依序排列）', OFFSET_X, PANEL3_Y0 - 8);
+}
+
+// 縮圖只畫有軌跡的 aisle 格子（PANEL1_TRAIL_TIERS 同一組色階），其餘格子（牆/設施/入口/攤位）不畫，見使用者需求。
+// 只在 captureRunSnapshot() 當下呼叫一次，畫到離線畫布回傳存進 runSnapshots——不是每幀重畫（見上方效能註解）。
+function renderSnapshotThumb(grid) {
+  const pg = createGraphics(THUMB_W, THUMB_H), ctx = pg.drawingContext;
+  for (let r = 0; r < World.ROWS; r++) {
+    for (let c = 0; c < World.COLS; c++) {
+      const color = trailTier(grid[r][c], PANEL1_TRAIL_TIERS);
+      if (!color) continue;
+      ctx.fillStyle = color;
+      ctx.fillRect(c * THUMB_CELL, r * THUMB_CELL, THUMB_CELL, THUMB_CELL);
+    }
+  }
+  return pg;
+}
+
+function drawRunSnapshots() {
+  if (runSnapshots.length === 0) {
+    noStroke(); fill('#718096');
+    textSize(11); textAlign(LEFT, TOP);
+    text('尚未跑完任何一次10年，跑完會自動留一張快照在這裡。', OFFSET_X, PANEL3_Y0);
+    return;
+  }
+  runSnapshots.forEach((img, i) => {
+    const col = i % THUMB_COLS, row = Math.floor(i / THUMB_COLS);
+    const x0 = OFFSET_X + col * (THUMB_W + THUMB_GAP_X);
+    const y0 = PANEL3_Y0 + row * (THUMB_H + THUMB_GAP_Y);
+    image(img, x0, y0);
+  });
+}
+
+// 使用者需求(4)：兩張圖之間的時間軸進度條，2026/08 起、tick=0.5年，MAX_TICKS(20)跑完＝2036/08。
+function drawTimeline() {
+  const x0 = OFFSET_X, x1 = OFFSET_X + VIEW_W;
+  const barY = TIMELINE_Y0 + 16, barH = 6;
+  const pct = Math.min(1, tick / MAX_TICKS);
+
+  let m = SIM_START_MONTH - 1 + tick * 6; // tick*6個月，累加自2026/08起
+  const y = SIM_START_YEAR + Math.floor(m / 12);
+  m = (m % 12) + 1;
+  const label = String(m).padStart(2, '0') + '/' + y;
+
+  noStroke(); fill(255);
+  textSize(11); textAlign(CENTER, BOTTOM);
+  text(label, x0 + (x1 - x0) * pct, barY - 6);
+
+  fill('#2d3748'); rect(x0, barY, x1 - x0, barH, barH / 2);       // 軌道
+  if (pct > 0) { fill('#ffffff'); rect(x0, barY, (x1 - x0) * pct, barH, barH / 2); } // 已完成部分
+
+  fill('#718096'); textSize(9); textAlign(LEFT, TOP);
+  text('2026/08', x0, barY + barH + 4);
+  textAlign(RIGHT, TOP);
+  text('2036/08', x1, barY + barH + 4);
+}
+
+// 畫面二：只有格子（牆/設施/入口維持map結構色，方便定位）＋只顯示軌跡——不畫攤位營業狀態、不畫行人。
+// stallslot（店鋪範圍）一律不顯示軌跡，只留結構色——即使行人有走進去逛過也不算（軌跡只代表走道動線）。
+// params.trailView（UI 下拉，三選一）決定畫哪一種：
+//   'tourist'／'resident'：只畫該人潮的離散三級色階（PANEL2_TOURIST_TRAIL_TIERS／RESIDENT_TRAIL_TIERS）。
+//   'overlap'：只畫兩種人潮都走過的格子，用 OVERLAP_TRAIL_TIERS 依 tH+rH 合計次數分三級深淺；沒重疊的格子跟沒軌跡一樣是深色底。
+// 走道格子填滿整格，同色階的相鄰格子會直接連成一片色塊，像基因圖的連續色帶（使用者需求）。
+// 2026-09-14：只跑 overviewCamera 看得到的範圍，且只在 panel2Dirty 時重畫一次到離線畫布存起來
+// （見 panel2Cache 宣告處），draw() 每幀只貼圖，不再每幀重新掃一次。
+// 使用者需求：畫面二固定用 overviewCamera（整張地圖縮到最遠），不吃拖曳/縮放，不跟畫面一共用鏡頭。
+function panel2CellStyle(r, c) {
+  const t = World.cellType[r][c];
+  if (t === 'wall' || t === 'facility') return '#4a5568';
+  if (t === 'entry' || t === 'light_rail_entrance') return '#c6f6d5';
+  if (t === 'stallslot') return '#111827';
+  if (t === 'sidewalk') return sidewalkHatchPattern;
+  if (t === 'crosswalk') return crosswalkHatchPattern;
+  if (NEW_TYPE_COLOR[t]) return NEW_TYPE_COLOR[t];
+  const tH = touristTrailHeat[r][c], rH = residentTrailHeat[r][c];
+  let color;
+  if (params.trailView === 'tourist') color = trailTier(tH, PANEL2_TOURIST_TRAIL_TIERS);
+  else if (params.trailView === 'resident') color = trailTier(rH, RESIDENT_TRAIL_TIERS);
+  else color = (tH > 0 && rH > 0) ? trailTier(tH + rH, OVERLAP_TRAIL_TIERS) : null;
+  return color || '#111827';
+}
+
+function renderPanel2Cache() {
+  if (!panel2Cache) panel2Cache = createGraphics(VIEW_W, VIEW_H);
+  const pg = panel2Cache, ctx = pg.drawingContext;
+  pg.clear();
+  const [r0, r1] = visibleRowRange(overviewCamera), [c0, c1] = visibleColRange(overviewCamera);
+  const cs = overviewCamera.cellPx;
+  // 效能（實測）：cellPx 固定=2，可見範圍最多到 World.ROWS x World.COLS(266,832格)，逐格 fillRect 一次
+  // 要 ~190ms，重畫一次就讓整個模擬明顯卡格——改成同一列連續同色/同材質的格子合併成一個 fillRect
+  // （跟 drawGrid 的 cs<8 分支同一招）。這個縮放尺度(每格2px)本來就看不出斜線材質的紋理或格線，
+  // 合併後視覺沒有差異，純粹是減少 canvas 呼叫次數。
+  for (let r = r0; r <= r1; r++) {
+    let runStart = c0, runStyle = panel2CellStyle(r, c0);
+    for (let c = c0 + 1; c <= c1 + 1; c++) {
+      const style = c <= c1 ? panel2CellStyle(r, c) : null; // c1+1 當結尾哨兵，逼最後一段跑完
+      if (style !== runStyle) {
+        ctx.fillStyle = runStyle;
+        ctx.fillRect(localScreenX(runStart, overviewCamera), localScreenY(r, overviewCamera), (c - runStart) * cs, cs);
+        runStart = c; runStyle = style;
+      }
+    }
+  }
+  panel2Dirty = false;
+}
+
+// 依 cellType/店鋪狀態/軌跡熱度決定一格的填色（字串色碼或斜線 CanvasPattern），跟畫面二共用同一套判斷邏輯
+// （見 renderPanel2Cache 的 cellStyle），只是資料來源換成 camera 這份互動鏡頭。
+function gridCellStyle(r, c) {
+  const t = World.cellType[r][c];
+  if (t === 'sidewalk') return sidewalkHatchPattern;
+  if (t === 'crosswalk') return crosswalkHatchPattern;
+  if (t === 'stallslot') return STALL_COLOR[World.stallAtRC[r + ',' + c].shop.state]; // 使用者需求(1)：色以店鋪為單位，不讀 trailHeat
+  // 使用者需求(1)：兩客群合計單一色階；20260914 需求#2：params.showTrail 關掉時一律走道底色，不查熱度。
+  if (t === 'aisle') return (params.showTrail && trailTier(touristTrailHeat[r][c] + residentTrailHeat[r][c], PANEL1_TRAIL_TIERS)) || '#14161c';
+  if (t === 'entry' || t === 'light_rail_entrance') return '#c6f6d5';
+  if (NEW_TYPE_COLOR[t]) return NEW_TYPE_COLOR[t];
+  return '#4a5568'; // wall/facility
+}
+
+function drawGrid() {
+  const [r0, r1] = visibleRowRange(), [c0, c1] = visibleColRange();
+  const cs = camera.cellPx;
+  const showLabels = cs >= 14; // 縮太小格子文字擠不下也看不清，乾脆不畫（省效能，也不會糊成一團）
+  const rounded = cs >= 8; // 圓角只有格子夠大才需要——這時可見格數本來就少，維持原本逐格畫（每格間留1px格線）。
+
+  if (rounded) {
+    noStroke();
+    for (let r = r0; r <= r1; r++) {
+      for (let c = c0; c <= c1; c++) {
+        const t = World.cellType[r][c];
+        const x = worldToScreenX(c), y = worldToScreenY(r, OFFSET_Y);
+        // 斜線材質是 CanvasPattern，p5 的 fill() 吃不了，跟原本一樣繞過去直接用原生 fillRect。
+        if (t === 'sidewalk') { drawingContext.fillStyle = sidewalkHatchPattern; drawingContext.fillRect(x, y, cs - 1, cs - 1); continue; }
+        if (t === 'crosswalk') { drawingContext.fillStyle = crosswalkHatchPattern; drawingContext.fillRect(x, y, cs - 1, cs - 1); continue; }
+        fill(gridCellStyle(r, c));
+        rect(x, y, cs - 1, cs - 1, 2);
+      }
+    }
+  } else {
+    // 效能：格子縮到很小(cs<8，可能十幾萬格可見)時逐格 fillRect 太慢——同一列裡連續同色/同材質的格子
+    // 合併成一個 fillRect，呼叫次數大幅減少（跟 renderPanel2Cache 同一招）。這個尺度本來就看不出每格
+    // 間的1px格線，合併後視覺沒有差異。
+    const ctx = drawingContext;
+    for (let r = r0; r <= r1; r++) {
+      let runStart = c0, runStyle = gridCellStyle(r, c0);
+      for (let c = c0 + 1; c <= c1 + 1; c++) {
+        const style = c <= c1 ? gridCellStyle(r, c) : null; // c1+1 當結尾哨兵，逼最後一段跑完
+        if (style !== runStyle) {
+          ctx.fillStyle = runStyle;
+          ctx.fillRect(worldToScreenX(runStart), worldToScreenY(r, OFFSET_Y), (c - runStart) * cs, cs);
+          runStart = c; runStyle = style;
+        }
+      }
+    }
+  }
+
+  if (!showLabels) return; // showLabels 只在 cs>=14(必走 rounded 分支)成立，格數本來就少
+  noStroke();
+  for (let r = r0; r <= r1; r++) {
+    for (let c = c0; c <= c1; c++) {
+      const t = World.cellType[r][c];
+      let label = '', textC = '#2d3748';
+      if (t === 'stallslot') {
+        const s = World.stallAtRC[r + ',' + c];
+        const state = s.shop.state; // 使用者需求(1)：顏色以店鋪（同 code 分組）為單位，不是個別格子
+        textC = (state === 'new' || state === 'old') ? '#ffffff' : 'rgba(255,255,255,.4)';
+        if (state !== 'blank') label = s.code;
+      } else if (t === 'entry') {
+        label = '入口'; textC = '#22543d';
+      } else if (t === 'facility') {
+        label = '設施'; textC = '#e2e8f0';
+      }
+      if (!label) continue;
+      const x = worldToScreenX(c), y = worldToScreenY(r, OFFSET_Y);
+      fill(textC);
+      textSize(8); textAlign(CENTER, CENTER);
+      text(label, x + cs / 2, y + cs / 2);
+    }
+  }
+}
+
+// ============================================================
+// 8. UI
+// ============================================================
+function bindUI() {
+  const btnPlay = document.getElementById('btnPlay');
+  const btnReset = document.getElementById('btnReset');
+  const speed = document.getElementById('speed');
+  const trafficMult = document.getElementById('trafficMult');
+  const trafficMultLabel = document.getElementById('trafficMultLabel');
+  const trailView = document.getElementById('trailView');
+  const showTrail = document.getElementById('showTrail');
+  const showCatchment = document.getElementById('showCatchment');
+  const eventRadios = document.querySelectorAll('input[name="eventChoice"]');
+
+  btnPlay.addEventListener('click', () => {
+    if (tick >= MAX_TICKS) return; // 已跑完10年，開始鍵不再有作用
+    playing = !playing;
+    lastBeatTime = millis();
+  });
+  btnReset.addEventListener('click', () => {
+    resetSimulation(); playing = false;
+  });
+  speed.addEventListener('input', () => { params.speed = Number(speed.value); });
+  trafficMult.addEventListener('input', () => {
+    params.trafficMult = Number(trafficMult.value);
+    trafficMultLabel.textContent = params.trafficMult.toFixed(1) + '×' + (params.trafficMult === 1 ? '（預設）' : '');
+  });
+  trailView.addEventListener('change', () => { params.trailView = trailView.value; panel2Dirty = true; });
+  showTrail.addEventListener('change', () => { params.showTrail = showTrail.checked; }); // 20260914 需求#2：關掉畫面一的動線熱度
+  showCatchment.addEventListener('change', () => { params.showCatchment = showCatchment.checked; });
+  eventRadios.forEach(r => r.addEventListener('change', () => { if (r.checked) params.activeEventId = r.value; }));
+}
+
+function updateStatsDisplay() {
+  const counts = { old: 0, new: 0, old_unused: 0, new_unused: 0, blank: 0 };
+  World.shops.forEach(s => counts[s.state]++);
+  const years = (tick * 0.5).toFixed(1);
+  const survivalRate = (counts.new + counts.new_unused) > 0
+    ? (100 * counts.new / (counts.new + counts.new_unused)).toFixed(1) : '—';
+  const idleRate = (100 * (counts.old_unused + counts.new_unused) / N_STALLS).toFixed(1);
+  const blankOk = counts.blank === N_BLANK_INIT;
+  const t = Tourist.pedestrians.length;
+  const r = Resident.pedestrians.length;
+  const finished = tick >= MAX_TICKS;
+
+  const btnPlay = document.getElementById('btnPlay');
+  btnPlay.textContent = finished ? '■ 已跑完10年' : (playing ? '⏸ 暫停' : '▶ 開始');
+
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-line"><span>Tick / 年數（上限 ${MAX_TICKS} / 10年）</span><b>${tick} / ${years}年${finished ? ' ✅' : ''}</b></div>
+    <div class="stat-line"><span>第幾天（視覺刷新）</span><b>${dayCounter}</b></div>
+    <div class="stat-line"><span>new（營業中）</span><b>${counts.new}</b></div>
+    <div class="stat-line"><span>new_unused（閒置）</span><b>${counts.new_unused}</b></div>
+    <div class="stat-line"><span>old（營業中）</span><b>${counts.old}</b></div>
+    <div class="stat-line"><span>old_unused（閒置）</span><b>${counts.old_unused}</b></div>
+    <div class="stat-line"><span>blank（真正空白）</span><b>${counts.blank}</b> ${blankOk ? '✅' : '⚠️'}</div>
+    <div class="stat-line"><span>新創存活率</span><b>${survivalRate}%</b></div>
+    <div class="stat-line"><span>整體閒置率</span><b>${idleRate}%</b></div>
+    <div class="stat-line"><span>▲遊客 / ●居民（場上）</span><b>${t} / ${r}</b></div>
+  `;
+}
+</script>
+</body>
+</html>
