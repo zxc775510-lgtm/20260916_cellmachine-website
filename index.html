@@ -34,23 +34,27 @@
   .legend-item .glyph { width: 44px; text-align: center; font-size: 13px; flex-shrink: 0; }
   .note { color: #718096; font-size: 10.5px; line-height: 1.7; }
 
-  /* -- 右：控制面板 -- */
-  #control-panel { grid-column: 2; }
-  #control-panel h3 { font-size: 12px; font-weight: 600; letter-spacing: .1em; color: #fff; opacity: .9; margin: 22px 0 10px; }
-  #control-panel h3:first-child { margin-top: 0; }
-  .row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  /* -- 右：控制面板（儀表板式：卡片分組、主要動作置頂、控制項滿寬） -- */
+  #control-panel { grid-column: 2; position: sticky; top: 20px; align-self: start; max-height: calc(100vh - 40px); overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+  .card { border: 1px solid rgba(255,255,255,.15); border-radius: 10px; padding: 12px 14px; }
+  #control-panel h3 { font-size: 11px; font-weight: 600; letter-spacing: .12em; color: #a0aec0; margin: 0 0 10px; }
+  .row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .row > * { flex: 1; }
   button {
-    background: transparent; color: #e2e8f0; border: 1px solid rgba(255,255,255,.4); border-radius: 999px;
-    padding: 7px 16px; font-size: 11px; letter-spacing: .08em; cursor: pointer; font-family: inherit;
+    background: transparent; color: #e2e8f0; border: 1px solid rgba(255,255,255,.4); border-radius: 8px;
+    padding: 10px 12px; font-size: 13px; letter-spacing: .06em; cursor: pointer; font-family: inherit;
   }
+  button.primary { background: #ffffff; color: #000000; font-weight: 600; }
   button:hover { background: #ffffff; color: #000000; }
+  button:disabled { opacity: .5; cursor: default; }
   select, input[type=range] { width: 100%; accent-color: #ffffff; }
   select {
-    background: #000000; color: #e2e8f0; border: 1px solid rgba(255,255,255,.3); border-radius: 4px;
-    padding: 6px; font-family: inherit; font-size: 11px;
+    background: #000000; color: #e2e8f0; border: 1px solid rgba(255,255,255,.3); border-radius: 6px;
+    padding: 8px; font-family: inherit; font-size: 12px; margin-top: 6px;
   }
-  .stat-line { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px dashed rgba(255,255,255,.15); font-size: 11px; }
-  .stat-line b { color: #ffffff; font-weight: 600; }
+  input[type=text] { background: #000; color: #e2e8f0; border: 1px solid rgba(255,255,255,.3); border-radius: 6px; padding: 8px; font-family: inherit; font-size: 12px; min-width: 0; }
+  .stat-line { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed rgba(255,255,255,.15); font-size: 13px; }
+  .stat-line b { color: #ffffff; font-weight: 600; font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
@@ -109,40 +113,50 @@
   </div>
 
   <div id="control-panel">
-    <h3>播放控制</h3>
+    <div class="card"><h3>播放控制</h3>
     <div class="row">
-      <button id="btnPlay">▶ 開始</button>
+      <button id="btnPlay" class="primary">▶ 開始</button>
       <button id="btnReset">↺ 重設</button>
     </div>
     <label class="note">模擬速度</label>
     <input type="range" id="speed" min="20" max="300" step="10" value="100">
+    </div>
 
-    <h3>人流量</h3>
+    <div class="card"><h3>人流量</h3>
     <label class="note">人流量倍率</label>
     <input type="range" id="trafficMult" min="0.2" max="3" step="0.1" value="1">
     <div class="note" id="trafficMultLabel">1.0×（預設）</div>
+    </div>
 
-    <h3>外部事件</h3>
-    <label class="note"><input type="radio" name="eventChoice" id="evtNone" value="none" checked> 無</label><br>
-    <label class="note"><input type="radio" name="eventChoice" id="evtWarning" value="warning"> 三級警戒式人流管制</label><br>
-    <label class="note"><input type="radio" name="eventChoice" id="evtMarketing" value="marketing"> 青創行銷加碼期</label>
-
-    <h3>畫面一顯示</h3>
-    <label class="note"><input type="checkbox" id="showTrail" checked> 顯示動線熱度</label><br>
-    <label class="note"><input type="checkbox" id="showCatchment" checked> 顯示1km生活圈範圍（畫面一+ISO）</label>
-
-    <h3>軌跡篩選（畫面二）</h3>
+    <div class="card"><h3>軌跡篩選（畫面二）</h3>
     <select id="trailView">
       <option value="tourist">遊客軌跡</option>
       <option value="resident">居民軌跡</option>
       <option value="overlap">重疊</option>
     </select>
+    </div>
 
-    <h3>目前狀態</h3>
+    <div class="card"><h3>年代對照（畫面一疊色＋ISO 攤位造型，2026 vs 2020s）</h3>
+    <select id="eraYear">
+      <option value="2026">2026</option>
+      <option value="2020s">2020s</option>
+    </select>
+    <select id="eraAttribute">
+      <option value="zone">Zone</option>
+      <option value="category">分類 Category</option>
+      <option value="structure">攤位結構 Structure</option>
+      <option value="existence">用途 Kind（走道/設施/攤位/入口）</option>
+    </select>
+    <div class="note" id="eraLegend"></div>
+    </div>
+
+    <div class="card"><h3>目前狀態</h3>
     <div id="stats"></div>
+    </div>
   </div>
 </div>
 
+<script src="config_data.js"></script>
 <script src="agents/tourist.js"></script>
 <script src="agents/resident.js"></script>
 <script src="agents/vendorNew.js"></script>
@@ -150,6 +164,12 @@
 <script src="agents/vendorIdle.js"></script>
 <script src="agents/cell.js"></script>
 <script src="grid_data.js"></script>
+<script src="era_data.js"></script>
+<script src="stall_models/js/closed.js"></script>
+<script src="stall_models/js/semi.js"></script>
+<script src="stall_models/js/cart.js"></script>
+<script src="stall_models/js/overrides.js"></script>
+<script src="stall_models/props/chair.js"></script>
 
 <script>
 // ============================================================
@@ -158,9 +178,9 @@
 // ============================================================
 
 // ============================================================
-// 1. 環境常數 — 20260823_simulator_setting.md
+// 1. 環境常數 — simulator_setting.md
 // ============================================================
-const CELL = 28, OFFSET_X = 14, OFFSET_Y = 14;
+const OFFSET_X = 14, OFFSET_Y = 14;
 
 const GRID_ROWS = GRID_DATA.gridRows, GRID_COLS = GRID_DATA.gridCols;
 
@@ -201,12 +221,12 @@ function canvasHeightFor(nSnapshots) {
   return PANEL3_Y0 + rows * THUMB_H + (rows - 1) * THUMB_GAP_Y + OFFSET_Y;
 }
 
-const OLD_FIXED_CODES = ['L', 'K', 'P', 'X', 'A-2']; // 固定老攤位，不隨機分配、不搬遷（見使用者指定名單）
+const OLD_FIXED_CODES = ['L', 'K', 'P', 'A-2']; // X 已於 2026-09-24 QGIS 改成設施格，不在地圖上了，從名單移除 // 固定老攤位，不隨機分配、不搬遷（見使用者指定名單）
 // 開局固定 new 名單（使用者標紅色斜線指定）：只保證「開局是 new」，之後照 VendorNew 正常規則搬遷/關店，不是永久凍結。
 const NEW_FIXED_CODES = ['A', 'B', 'F', 'G', 'I', 'M', 'N', 'O', 'R', 'T', 'U', 'V', 'W'];
 const N_OLD_INIT = OLD_FIXED_CODES.length, N_NEW_INIT = NEW_FIXED_CODES.length; // 單位＝店鋪（同 code 分組後的 World.shops），不是 grid id 格數
 
-const K_BEATS_PER_TICK = 6;      // tick=0.5年，beat=tick的1/6（20260823_simulator_setting.md「時間系統」，本次不變動）
+const K_BEATS_PER_TICK = 6;      // tick=0.5年，beat=tick的1/6（simulator_setting.md「時間系統」，本次不變動）
 const DAY_LENGTH_BEATS = 96;     // 日循環：純視覺刷新節奏，跟 tick 並行、互不取代
 const MAX_TICKS = 20;            // 時間軸總長10年 ÷ 0.5年/tick＝20；跑到這裡自動停止，不再前進
 const MAX_PEDESTRIANS = 260;
@@ -245,13 +265,16 @@ const OVERLAP_TRAIL_TIERS = { low: '#c4b5fd', mid: '#6b46c1', high: '#3b0764' };
 //   馬路最低＝0，人行道/街廓地面/市場走道/入口略高＝路緣常見的15公分）；沒列在這裡的型別
 //   （road/crosswalk/bus_stop/light_rail_track/outside）維持0＝最低的路面基準。
 const ISO_HEIGHT_M = {
-  wall: 3, facility: 3, stallslot: 3, building: 9,
+  wall: 3, facility: 0, stallslot: 0, building: 9, // stallslot 只畫地板，攤位量體改由 drawIsoShop() 依 STALL_STRUCTURE 畫
   sidewalk: 0.15, block: 0.15, aisle: 0.15, entry: 0.15, light_rail_entrance: 0.15,
 };
 const ISO_PERSON_HEIGHT_M = 1.6; // agent 標記的擠出高度，一般成人身高
 // 20260914 使用者需求#5：isometric 視角建築物/牆面用半透明呈現，減少對市場內部/agent的遮擋；
-// 之後追加需求：攤販（stallslot）也要半透明看得見裡面。
-const ISO_TRANSLUCENT_TYPES = new Set(['building', 'wall', 'stallslot']);
+// 攤販（stallslot）2026-09-24 起改畫 8-bit 不透明模型（drawIsoShop），不再半透明。
+const ISO_TRANSLUCENT_TYPES = new Set(['building', 'wall']);
+// 攤位結構（QGIS STALL 圖層 structure 欄位，依 display_code）：cart＝移動攤販（餐車）、closed＝鐵門封閉（盒子＋鐵捲門），
+// 沒列的＝半開放（臨街有桌子）。結構是攤位（code）這個位置的物理屬性，不隨店鋪搬遷/開關店改變。
+const STALL_STRUCTURE = { U: 'cart', V: 'cart', W: 'cart', Y: 'closed', Z: 'closed', 'Q-1': 'closed', 'Q-2': 'closed', 'Q-3': 'closed', '外甲1': 'closed', '外甲2': 'closed', '外甲3': 'closed', '外甲4': 'closed' };
 const ISO_TRANSLUCENT_ALPHA = 0.55;
 const CITY_BLOCK_TYPES = new Set(['building', 'block', 'wall', 'facility', 'stallslot', 'aisle', 'entry', 'light_rail_entrance']);
 const MIN_CITY_BLOCK_CELLS = 1000; // 濾掉巷弄/安全島這種太小的連通塊，不算一個真正的「街廓」
@@ -283,17 +306,26 @@ World.makeField = function (v) {
 const camera = { col0: 0, row0: 0, cellPx: 20, dragging: false, dragLastX: 0, dragLastY: 0 };
 
 function initCamera() {
-  // 開場置中在市場範圍（用攤位格的bbox），縮放到能看見市場+一點周邊。
-  let minR = Infinity, maxR = -Infinity, minC = Infinity, maxC = -Infinity;
-  for (const s of World.stalls) {
-    minR = Math.min(minR, s.row); maxR = Math.max(maxR, s.row);
-    minC = Math.min(minC, s.col); maxC = Math.max(maxC, s.col);
+  // 開場聚焦「市場街廓＋鄰近4街廓」（isoBBox，見 computeIsoScope，跟ISO面板共用同一份街廓資料，
+  // 不重複算一次）——對應老師 2026-09-15 課堂回饋「先聚焦單一市場街區，再逐步擴展」，縮放到能看見
+  // 市場所在街廓的道路/公車站等鄰近脈絡，不是只框住攤位本身。
+  let minR, maxR, minC, maxC;
+  if (isoBBox) {
+    ({ minRow: minR, maxRow: maxR, minCol: minC, maxCol: maxC } = isoBBox);
+  } else {
+    minR = Infinity; maxR = -Infinity; minC = Infinity; maxC = -Infinity;
+    for (const s of World.stalls) {
+      minR = Math.min(minR, s.row); maxR = Math.max(maxR, s.row);
+      minC = Math.min(minC, s.col); maxC = Math.max(maxC, s.col);
+    }
+    if (!isFinite(minR)) { minR = maxR = minC = maxC = 0; }
   }
-  if (!isFinite(minR)) { minR = maxR = 0; minC = maxC = 0; }
   const midR = (minR + maxR) / 2, midC = (minC + maxC) / 2;
-  camera.cellPx = 20;
+  const rows = maxR - minR + 1, cols = maxC - minC + 1;
+  camera.cellPx = Math.min(VIEW_W / cols, VIEW_H / rows);
   camera.col0 = midC - (VIEW_W / camera.cellPx) / 2;
   camera.row0 = midR - (VIEW_H / camera.cellPx) / 2;
+  clampCamera();
 }
 
 function clampCamera() {
@@ -395,7 +427,7 @@ function computeStallGroups() {
     s.shop = g;
   });
   World.shops = Object.values(groups);
-  World.cellSpace = Cell.buildCellSpace(); // Space Class 陣列（ROWS×COLS），見 20260827_agent_setting.md「Space Class」
+  World.cellSpace = Cell.buildCellSpace(); // Space Class 陣列（ROWS×COLS），見 agent_setting.md「Space Class」
   World.shops.forEach(s => { s.corridorFrontage = Cell.shopFrontage(s); }); // Cell Attribute 彙總，固定值，設定時算一次
   N_STALLS = World.shops.length;           // 33 家店鋪（不是162格）
   N_BLANK_INIT = N_STALLS - N_OLD_INIT - N_NEW_INIT;
@@ -414,7 +446,7 @@ let runSnapshots = []; // 畫面三：每跑完一次10年留一張當下的動�
 let panel2Cache = null, panel2Dirty = true;
 let tick = 0, beatCounter = 0, dayBeatCounter = 0, dayCounter = 0;
 let playing = false;
-let params = { speed: 100, trafficMult: 1.0, trailView: 'tourist', activeEventId: 'none', showTrail: true, showCatchment: true };
+let params = { speed: 100, trafficMult: 1.0, trailView: 'tourist', activeEventId: 'none', showTrail: true, showCatchment: true, showEraOverlay: true, eraYear: '2026', eraAttribute: 'zone', showEraShopModel: true }; // showEraShopModel：2026-10-01 開關移除、固定開啟
 
 // 1km 生活圈圈：直徑1000m半透明白圈，中心＝市場bbox中心。99_Grid 格子＝真實1m（adapter_market_to_website.py
 // 頭注「QGIS 1m grid」，經 QGIS 相鄰格中心點距離量測驗證），半徑500m直接等於500格，不用另外換算。
@@ -442,7 +474,7 @@ function setup() {
   initIsoCamera();
   initCamera();
   initOverviewCamera();
-  // 畫布寬度固定用 VIEW_W（鏡頭視窗），不再是 World.COLS * CELL——見上面 VIEW_W/VIEW_H 說明。
+  // 畫布寬度固定用 VIEW_W（鏡頭視窗），不再是 World.COLS * 格子像素——見上面 VIEW_W/VIEW_H 說明。
   const cnv = createCanvas(OFFSET_X * 2 + VIEW_W, canvasHeightFor(runSnapshots.length));
   cnv.parent('canvas-wrap');
   textFont('Microsoft JhengHei, sans-serif');
@@ -646,20 +678,6 @@ function withIsoClip(fn) {
   drawingContext.restore();
 }
 
-// 市場有屋頂：淡紅色低透明度遮罩蓋在市場範圍上方，滑鼠移進這塊範圍就讓遮罩消失（可以看到底下實際畫面）。
-// 只蓋畫面一（互動主畫面），畫面二是動線總覽不需要這層。
-function drawMarketRoofOverlay() {
-  if (!World.marketBBox) return;
-  const bb = World.marketBBox;
-  const x0 = worldToScreenX(bb.minCol), y0 = worldToScreenY(bb.minRow, OFFSET_Y);
-  const x1 = worldToScreenX(bb.maxCol + 1), y1 = worldToScreenY(bb.maxRow + 1, OFFSET_Y);
-  const hovering = mouseX >= x0 && mouseX <= x1 && mouseY >= y0 && mouseY <= y1;
-  if (hovering) return;
-  noStroke();
-  fill(255, 90, 90, 45);
-  rect(x0, y0, x1 - x0, y1 - y0);
-}
-
 // 1km 生活圈圈（畫面一，2D）：中心＝市場bbox中心，半徑500格＝500m（見 CATCHMENT_RADIUS_CELLS 註解）。
 // 半透明白圈，用來目測市場周邊生活圈範圍，跟 drawMarketRoofOverlay 一樣畫在市場圖層最上面。
 function drawCatchmentCircle() {
@@ -675,11 +693,14 @@ function drawCatchmentCircle() {
 
 // 鏡頭拖曳(平移)／滾輪(縮放)：只在畫面一/二的視窗範圍內生效，避免跟右側控制面板的表單元件搶事件。
 function bindCameraControls(cnv) {
-  cnv.mousePressed(() => {
-    if (!overCameraViewport(mouseX, mouseY)) return;
-    camera.dragging = true; camera.dragLastX = mouseX; camera.dragLastY = mouseY;
+  // 綁原生 mousedown：p5 的 cnv.mousePressed() 一個畫布只能有一個 callback，ISO 那邊
+  // (bindIsoCameraControls) 也用它，後綁的會蓋掉先綁的，導致 2D 拖曳失效。放開由全域 mouseReleased 處理。
+  cnv.elt.addEventListener('mousedown', (e) => {
+    const rect = cnv.elt.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    if (!overCameraViewport(mx, my)) return;
+    camera.dragging = true; camera.dragLastX = mx; camera.dragLastY = my;
   });
-  cnv.mouseReleased(() => { camera.dragging = false; });
   // 綁在原生 DOM 元素上直接讀 event.deltaY，不透過 p5 的 mouseWheel() 包一層——
   // 2026-09-14 修正：用 p5 的 e.delta 時只會放大不會縮小（bug：那個屬性在這個 p5 版本
   // 不是預期的正負號，等於 e.delta 永遠讀到非正值，條件式永遠走同一個分支）。
@@ -704,14 +725,42 @@ function bindCameraControls(cnv) {
   }, { passive: false });
 }
 
-function updateCameraDrag() {
+// 左鍵按住拖曳平移：用 p5 全域 mouseDragged（每次滑鼠移動就更新），不靠 draw() 每幀輪詢，
+// 快速拖曳／放開時不會漏掉位移。放開在畫布外時 mouseReleased 也要收掉 dragging。
+function mouseDragged() {
   if (!camera.dragging) return;
-  if (!mouseIsPressed) { camera.dragging = false; return; }
-  const dx = mouseX - camera.dragLastX, dy = mouseY - camera.dragLastY;
-  camera.col0 -= dx / camera.cellPx;
-  camera.row0 -= dy / camera.cellPx;
+  camera.col0 -= (mouseX - camera.dragLastX) / camera.cellPx;
+  camera.row0 -= (mouseY - camera.dragLastY) / camera.cellPx;
   camera.dragLastX = mouseX; camera.dragLastY = mouseY;
   clampCamera();
+}
+function mouseReleased() { camera.dragging = false; }
+
+// 滑鼠停在畫面一某格上：浮出該格「當下」狀態（型別／店鋪與營業狀態／年代對照的 zone、分類、結構）。
+// 年代欄位用目前下拉選的年代（ERA_DATA 只有 2026 與 2020s 兩個時間點）。
+function drawCellTooltip() {
+  if (!overCameraViewport(mouseX, mouseY) || camera.dragging) return;
+  const c = Math.floor(camera.col0 + (mouseX - OFFSET_X) / camera.cellPx);
+  const r = Math.floor(camera.row0 + (mouseY - OFFSET_Y) / camera.cellPx);
+  if (r < 0 || c < 0 || r >= World.ROWS || c >= World.COLS) return;
+  const lines = [`(${r}, ${c})  ${World.cellType[r][c]}`];
+  const st = World.stallAtRC[r + ',' + c];
+  if (st) lines.push(`店鋪 ${st.shop.code}：${st.shop.state}`);
+  const d = ERA_DATA.cells[r + ',' + c], y = params.eraYear;
+  if (d) {
+    if (d['kind_' + y]) lines.push(`用途（${y}）：${d['kind_' + y]}`);
+    const id = d.entity_id || d.facility_id;
+    if (id) lines.push(`ID：${id}`);
+    if (d['zone_' + y]) lines.push(`Zone（${y}）：${d['zone_' + y]}`);
+    if (d['category_' + y]) lines.push(`分類（${y}）：${d['category_' + y]}`);
+    if (d['structure_' + y]) lines.push(`結構（${y}）：${d['structure_' + y]}`);
+  }
+  textSize(12); textAlign(LEFT, TOP);
+  const w = Math.max(...lines.map(l => textWidth(l))) + 16, h = lines.length * 16 + 10;
+  const x = Math.min(mouseX + 14, OFFSET_X + VIEW_W - w), y0 = Math.min(mouseY + 14, OFFSET_Y + VIEW_H - h);
+  fill(0, 0, 0, 220); stroke(255, 255, 255, 120); rect(x, y0, w, h, 4);
+  noStroke(); fill(255);
+  lines.forEach((l, i) => text(l, x + 8, y0 + 5 + i * 16));
 }
 
 function draw() {
@@ -719,7 +768,6 @@ function draw() {
     beat();
     lastBeatTime = millis();
   }
-  updateCameraDrag();
   updateIsoCameraDrag();
   background(0);
 
@@ -730,9 +778,9 @@ function draw() {
     Tourist.drawVisionHighlight2D(); // 20260914 需求#2：2D 也用同一份可見格資料做高亮呈現
     Tourist.draw(window);
     Resident.draw(window);
-    drawMarketRoofOverlay();
     drawCatchmentCircle();
   });
+  drawCellTooltip();
   updateStatsDisplay();
 
   // 新版面第二格：ISO（2.5D 等角展示，20260914 grilling 決議）。
@@ -753,6 +801,7 @@ function draw() {
   // 畫面三：歷史軌跡快照（使用者需求：跑完一次10年留一張，3個一列依序排下去）。
   drawPanel3Label();
   drawRunSnapshots();
+
 }
 
 // ============================================================
@@ -828,7 +877,7 @@ function endOfDay() {
   dayCounter++;
 }
 
-// 外部事件（人口與生成，見 20260823_simulator_setting.md「人口與生成」）——固定期間的陡降/陡升，倍率直接乘進生成公式。
+// 外部事件（人口與生成，見 simulator_setting.md「人口與生成」）——固定期間的陡降/陡升，倍率直接乘進生成公式。
 // 真實案例：三級警戒＝2021台灣疫情警戒，人流管制/提前休市，人潮驟減；青創行銷加碼期＝鹽一市場真實「青銀共市」改造案，整修+招商後話題性人流暴增。
 const EVENTS = [
   { id: 'warning',   name: '三級警戒式人流管制', startTick: 8, endTick: 12, spawnMultiplier: 0.3 },
@@ -884,6 +933,26 @@ function drawStallGroupOutlines(originY, cam = camera) {
 
 // ISO：市場+最近4個街廓的 2.5D 等角展示，跟畫面一同步（同一個 tick/同一批行人）。可拖曳/滾輪縮放
 // （20260914 使用者需求#2/#4）。色塊沿用 2D 版同一組配色，1格=1公尺，高度用合理常識給值（非真實樓高資料）。
+// 效能（2026-09-30 實測：年代攤位造型開啟後 42→15 fps）：地形＋攤位造型只在鏡頭／開關／年代／店鋪
+// 營業狀態變了才重畫到離線畫布（跟畫面二 panel2Cache 同一招），每幀只貼圖；行人、視域、屋頂、生活圈
+// 每幀照畫在上面。drawIsoTerrain() 全程只用原生 drawingContext，所以暫時把全域 drawingContext 指到
+// 離線畫布就能原封不動重用。
+let isoTerrainCache = null, isoTerrainKey = '';
+function drawIsoTerrainCached() {
+  const key = [isoCamera.originX, isoCamera.originY, isoCamera.u, params.showEraShopModel, params.eraYear, propVer,
+    params.showEraShopModel ? '' : World.shops.map(s => s.state).join()].join('|');
+  if (!isoTerrainCache) isoTerrainCache = createGraphics(width, ISO_H);
+  if (key !== isoTerrainKey) {
+    isoTerrainKey = key;
+    const main = drawingContext, ctx = isoTerrainCache.drawingContext;
+    isoTerrainCache.clear();
+    ctx.save(); ctx.translate(0, -ISO_Y0);
+    window.drawingContext = ctx;
+    try { drawIsoTerrain(); } finally { window.drawingContext = main; ctx.restore(); }
+  }
+  image(isoTerrainCache, 0, ISO_Y0);
+}
+
 function drawIsoScene() {
   noStroke(); fill(255);
   textSize(13); textAlign(LEFT, BOTTOM);
@@ -891,7 +960,7 @@ function drawIsoScene() {
   if (!isoBBox) { noFill(); stroke('#4a5568'); rect(OFFSET_X, ISO_Y0, VIEW_W, ISO_H); noStroke(); return; }
   withIsoClip(() => {
     fill('#000000'); rect(OFFSET_X, ISO_Y0, VIEW_W, ISO_H);
-    drawIsoTerrain();
+    drawIsoTerrainCached();
     Tourist.drawVisionHighlightIso(); // 視域高亮疊在地形之上、行人標記之下（20260914 需求#1：高亮呈現）
     Tourist.drawIso(window);
     Resident.drawIso(window);
@@ -935,6 +1004,41 @@ function isoSameMass(r, c, nr, nc, t) {
   return true;
 }
 
+// ISO 地面的攤販範圍虛線框（2026-10-01，同畫面一 drawStallGroupOutlines 的用意）。年代模式看 ERA_DATA
+// 該年代這格是不是攤位（2020s 沒有 entity_id 的格子整塊算同一個 'orphan'）；否則看 World.stallAtRC。
+function isoStallKey(r, c) {
+  if (params.showEraShopModel) {
+    const d = ERA_DATA.cells[r + ',' + c];
+    return d && d['kind_' + params.eraYear] === 'stall' ? (d.entity_id || 'orphan') : null;
+  }
+  const s = World.stallAtRC[r + ',' + c];
+  return s ? s.code : null;
+}
+// 線畫在攤位「外側」那一格的地面、往那格內縮一點——攤位自己的檯面會蓋到邊緣，畫在攤位裡面看不到。
+// 外側是牆/建築這種有高度的格子時才畫在攤位自己這格裡；兩家攤位相鄰的分界只由較晚畫的那格畫一次。
+function drawIsoStallOutline(r, c, t, h) {
+  const mb = World.marketBBox;
+  if (!mb || r < mb.minRow - 1 || r > mb.maxRow + 1 || c < mb.minCol - 1 || c > mb.maxCol + 1) return;
+  const isFlat = (type) => type !== undefined && (ISO_HEIGHT_M[type] || 0) <= 0.15;
+  const k = isoStallKey(r, c), i = 0.07, ctx = drawingContext, lines = [];
+  for (const [dr, dc, r0, c0, r1, c1] of [[-1, 0, r + i, c, r + i, c + 1], [1, 0, r + 1 - i, c, r + 1 - i, c + 1],
+    [0, -1, r, c + i, r + 1, c + i], [0, 1, r, c + 1 - i, r + 1, c + 1 - i]]) {
+    const nk = isoStallKey(r + dr, c + dc);
+    if (nk === k) continue;
+    const mine = k === null ? isFlat(t) // 我是攤位外側的平地：幫鄰居攤位畫外框
+      : nk !== null ? (dr < 0 || dc < 0) // 兩家攤位相鄰
+      : !isFlat((World.cellType[r + dr] || [])[c + dc]); // 我是攤位、外側不是平地
+    if (mine) lines.push([isoProject(r0, c0, h), isoProject(r1, c1, h)]);
+  }
+  if (!lines.length) return;
+  ctx.save();
+  ctx.setLineDash([5, 4]); ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (const [a, b] of lines) { ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); }
+  ctx.stroke();
+  ctx.restore();
+}
+
 // 一格＝一個擠出的方塊：頂面(h高度) + 南/東兩個可見側面(深淺模擬光影，不做真的光源運算)。
 // 側面只畫在「跟鄰格不是同一體」的邊界上（見 isoSameMass）——同型別/同店鋪的鄰格中間不畫牆，
 // 連續的攤位/建築/牆面才會呈現一整塊的量體，不是每一格都看得到獨立的方塊邊界（使用者需求）。
@@ -942,13 +1046,18 @@ function isoSameMass(r, c, nr, nc, t) {
 function drawIsoCell(r, c) {
   const t = World.cellType[r][c];
   const h = isoHeightPx(ISO_HEIGHT_M[t] || 0);
-  const col = isoCellColor(r, c);
+  const col = t === 'stallslot' ? '#2b2f3a' : t === 'facility' ? '#cdbf98' : isoCellColor(r, c); // 攤位格只畫地板，量體見 drawIsoShop()
   const alpha = ISO_TRANSLUCENT_TYPES.has(t) ? ISO_TRANSLUCENT_ALPHA : 1; // 需求#5：building/wall/stallslot 半透明
   const TL = isoProject(r, c, h), TR = isoProject(r, c + 1, h), BR = isoProject(r + 1, c + 1, h), BL = isoProject(r + 1, c, h);
   if (t === 'sidewalk') drawingContext.fillStyle = sidewalkHatchPattern;
   else if (t === 'crosswalk') drawingContext.fillStyle = crosswalkHatchPattern;
   else drawingContext.fillStyle = isoShade(col, 1, alpha);
   isoDrawPoly([TL, TR, BR, BL]);
+  drawIsoStallOutline(r, c, t, h);
+  if (t === 'facility') { // 設施格（市場實景）：磨石子地板上擺白色小方磚方塊，間隔穿插不鏽鋼圓凳，不抬高
+    if ((r + c) % 2 === 0) isoBox(r + 0.2, c + 0.2, r + 0.8, c + 0.8, 0, 0.5, '#f0efe9');
+    else if ((r + c) % 4 === 1) isoBox(r + 0.3, c + 0.3, r + 0.7, c + 0.7, 0, 0.45, '#aab0b8');
+  }
   if (h > 0) {
     const BL0 = isoProject(r + 1, c, 0), BR0 = isoProject(r + 1, c + 1, 0), TR0 = isoProject(r, c + 1, 0);
     if (!isoSameMass(r, c, r + 1, c, t)) {
@@ -959,6 +1068,598 @@ function drawIsoCell(r, c) {
       drawingContext.fillStyle = isoShade(col, 0.52, alpha);
       isoDrawPoly([TR, BR, BR0, TR0]); // 東面
     }
+  }
+}
+
+// ---- 攤位 8-bit 2.5D 模型（2026-09-24）：依 STALL_STRUCTURE 畫，純平塗色塊＋黑外框，不做漸層/透明 ----
+// isoBox：座標單位＝格(=1m)，(r0,c0)-(r1,c1) 為外緣，z0~z1 為高度(m)；畫南/東側面＋頂面（等角只看得到這三面）。
+function isoBox(r0, c0, r1, c1, z0, z1, col) {
+  const P = (r, c, z) => isoProject(r, c, isoHeightPx(z)), ctx = drawingContext;
+  ctx.strokeStyle = '#0b0d12'; ctx.lineWidth = 1;
+  const face = (pts, k) => { ctx.fillStyle = isoShade(col, k); isoDrawPoly(pts); ctx.stroke(); };
+  face([P(r1, c0, z1), P(r1, c1, z1), P(r1, c1, z0), P(r1, c0, z0)], 0.72); // 南
+  face([P(r0, c1, z1), P(r1, c1, z1), P(r1, c1, z0), P(r0, c1, z0)], 0.52); // 東
+  face([P(r0, c0, z1), P(r0, c1, z1), P(r1, c1, z1), P(r1, c0, z1)], 1);    // 頂
+}
+// 店面朝向：臨走道/入口格最多的那邊；平手優先 S>E>N>W（等角只看得到 S/E 面）。
+function shopFront(sh) {
+  if (sh.front) return sh.front;
+  const isA = (r, c) => { const t = (World.cellType[r] || [])[c]; return t === 'aisle' || t === 'entry'; };
+  const n = { N: 0, S: 0, W: 0, E: 0 };
+  for (let c = sh.minCol; c <= sh.maxCol; c++) { if (isA(sh.minRow - 1, c)) n.N++; if (isA(sh.maxRow + 1, c)) n.S++; }
+  for (let r = sh.minRow; r <= sh.maxRow; r++) { if (isA(r, sh.minCol - 1)) n.W++; if (isA(r, sh.maxCol + 1)) n.E++; }
+  return sh.front = ['S', 'E', 'N', 'W'].reduce((b, k) => n[k] > n[b] ? k : b, 'S');
+}
+
+// 公式求值：STALL_MODELS 的 u0/u1/d0/d1 可以是數字（絕對公尺）或字串公式（可用變數 W、H，見 stall_models.js 頭注）。
+// （這個共用檔沒有 ES module，變數命名跟 stall_models.js 註解裡的 W/D 對齊，D 當地區域變數傳進來時仍叫 D。）
+function ev(v, W, D) { return typeof v === 'number' ? v : new Function('W', 'D', 'return (' + v + ')')(W, D); }
+
+// local (u,d) → world (row,col)：u 沿店面寬度方向、d=0 是店面朝街那一側，跟 shopFront() 的四個朝向對應。
+// 通用化取代舊版只認 S/E 兩種朝向的寫法：現在四個朝向都能把鐵捲門/門面正確畫在真正朝街的那一面。
+function shopLocalToWorld(sh, front, u, d) {
+  const r0 = sh.minRow, c0 = sh.minCol, r1 = sh.maxRow + 1, c1 = sh.maxCol + 1;
+  if (front === 'S') return { row: r1 - d, col: c0 + u };
+  if (front === 'N') return { row: r0 + d, col: c0 + u };
+  if (front === 'E') return { row: r0 + u, col: c1 - d };
+  return { row: r0 + u, col: c0 + d }; // front === 'W'
+}
+
+// 依 STALL_MODELS（見 stall_models.js）畫一家店鋪：資料驅動，不同 structure 類型共用同一套直譯器，
+// 方便之後改建模軟體 export/import round-trip（見 tools/README.md）不用動這裡的程式碼。
+function drawIsoShop(sh) {
+  // 個別店鋪的獨立造型（STALL_MODEL_OVERRIDES，見 stall_models.js 頭注）優先於共用造型——
+  // 這樣每家店鋪都能有自己獨立的樣子，不是只能三選一（closed/semi/cart）。
+  const override = STALL_MODEL_OVERRIDES[sh.code];
+  const st = STALL_STRUCTURE[sh.code] || 'semi';
+  const model = override || STALL_MODELS[st];
+  const acc = sh.state === 'blank' ? '#4a5568' : STALL_COLOR[sh.state]; // 遮陽棚/橫桿色＝營業狀態色，blank 用灰
+  const front = shopFront(sh);
+  const W = (front === 'S' || front === 'N') ? (sh.maxCol - sh.minCol + 1) : (sh.maxRow - sh.minRow + 1);
+  const D = (front === 'S' || front === 'N') ? (sh.maxRow - sh.minRow + 1) : (sh.maxCol - sh.minCol + 1);
+  const pieces = []; // [深度, 畫法]，依中心點 row+col 由小到大畫（畫家演算法），屋頂等高處加 dz 保證最後畫
+  const box = (piece, u, d) => { // piece 的 u0/u1/d0/d1 求值後轉世界座標，u/d 是額外平移量（給 repeatAlongU 用）
+    const a = shopLocalToWorld(sh, front, ev(piece.u0, W, D) + u, ev(piece.d0, W, D) + d);
+    const b = shopLocalToWorld(sh, front, ev(piece.u1, W, D) + u, ev(piece.d1, W, D) + d);
+    const r0 = Math.min(a.row, b.row), r1 = Math.max(a.row, b.row), c0 = Math.min(a.col, b.col), c1 = Math.max(a.col, b.col);
+    const col = piece.color === 'acc' ? acc : piece.color;
+    pieces.push([(r0 + r1 + c0 + c1) / 2, () => isoBox(r0, c0, r1, c1, piece.h0, piece.h1, col)]);
+  };
+  model.pieces.forEach(p => box(p, 0, 0));
+  if (model.repeatAlongU) {
+    const { spacing, template } = model.repeatAlongU, n = Math.max(1, Math.floor(W / spacing));
+    for (let i = 0; i < n; i++) { const cu = (i + 0.5) * W / n; template.forEach(p => box(p, cu, 0)); }
+  }
+  pieces.sort((x, y) => x[0] - y[0]).forEach(p => p[1]());
+}
+
+// ---- ISO 攤位造型套用年代資料（params.showEraShopModel）----
+// 開關打開時取代上面 drawIsoShop() 的通用造型：同店鋪內相鄰、zone 相同的格子合併成「分區」，每個分區
+// 依 zone 畫基本結構、依 category 擺商品／設備、臨走道那側再擺雜物（2026-09-30 使用者確認的表格，取材
+// 99_resource/01_photo/鹽埕市場 照片；見 simulator_setting.md「ISO 攤位造型套用年代資料」）。
+// 全部程式畫（isoBox 方塊＋斜樑 beam＋斜面 poly），唯一例外是道具貼圖（凳子，isoSprite()，見 stall_models/props/）；兩個年代畫法相同（使用者決議 2020s 不做舊化）。
+// 座標：分區本地公尺 u∈[0,W]（沿店面寬）、d∈[0,D]（d=0 是 shopFront() 朝走道那側）、h 絕對公尺；
+// d<0＝伸進走道（走道椅凳、鐵捲門前雜物），純畫面、不擋 agent。
+// 資料邊界：鐵門封閉（含所有倉庫）整間畫 closed 造型、移動攤販整間畫 A 字木架市集帳（不看 zone）；沒有 entity_id 的封閉
+// 孤兒格（2020s 那 42 格）相鄰就併成一個大盒子——資料裡沒有能切開它們的店鋪邊界。
+
+// 依（entity_id, zone）對 ERA_DATA 格子做 4 方向連通分量＝分區；不同店鋪即使相鄰也不合併（同 isoSameMass）。
+function buildEraZoneRegions(era) {
+  const cellMap = new Map(); // "r,c" -> {row,col,zone,category,entityId}
+  for (const key in ERA_DATA.cells) {
+    const data = ERA_DATA.cells[key];
+    const st = data['structure_' + era];
+    // 倉庫一律當封閉攤位畫（2026-10-01 使用者要求），不管 structure/zone 填什麼
+    const zone = data['category_' + era] === '倉庫' ? '鐵門封閉' : (st === '鐵門封閉' || st === '移動攤販') ? st : data['zone_' + era];
+    if (!zone) continue;
+    const [row, col] = key.split(',').map(Number);
+    cellMap.set(key, { row, col, zone, category: data['category_' + era], entityId: data.entity_id || '' });
+  }
+  const visited = new Set(), regions = [];
+  cellMap.forEach((cell, key) => {
+    if (visited.has(key)) return;
+    visited.add(key);
+    const stack = [cell], members = [cell];
+    while (stack.length) {
+      const cur = stack.pop();
+      for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nk = (cur.row + dr) + ',' + (cur.col + dc);
+        const nb = cellMap.get(nk);
+        if (nb && !visited.has(nk) && nb.zone === cur.zone && nb.entityId === cur.entityId) {
+          visited.add(nk); stack.push(nb); members.push(nb);
+        }
+      }
+    }
+    const rows = members.map(m => m.row), cols = members.map(m => m.col);
+    const bbox = { minRow: Math.min(...rows), maxRow: Math.max(...rows), minCol: Math.min(...cols), maxCol: Math.max(...cols) };
+    regions.push({ zone: cell.zone, category: cell.category, bbox, cells: members });
+  });
+  return regions;
+}
+// ERA_DATA／地圖都是靜態的，分區跟每個分區算好的方塊清單只算一次（依年代快取）。
+const eraRegionCache = {};
+function eraRegions(era) { return eraRegionCache[era] || (eraRegionCache[era] = buildEraZoneRegions(era)); }
+
+// base:true＝墊在底下的大件（檯身/檯面、平台、棧板、桌腳），先畫、依 h0 由下往上，不參與深度排序。
+const bx = (u0, u1, d0, d1, h0, h1, color, base) => ({ u0, u1, d0, d1, h0, h1, color, base });
+const none = () => [];
+// 沿 u 等分 n 格，fn(a, b, i) 回傳這格要放的東西（a~b 已扣掉間隙）
+function slots(u0, u1, n, fn) {
+  const w = (u1 - u0) / n, g = w * 0.12;
+  return Array.from({ length: n }, (_, i) => fn(u0 + i * w + g, u0 + (i + 1) * w - g, i)).flat();
+}
+const GOODS_COLORS = ['#e53e3e', '#ecc94b', '#48bb78', '#4299e1', '#ed64a6'];
+
+// shopLocalToWorld() 的反函式：世界 (row,col) → 分區本地 (u,d)。
+function worldToLocal(bbox, front, row, col) {
+  const r0 = bbox.minRow, c0 = bbox.minCol, r1 = bbox.maxRow + 1, c1 = bbox.maxCol + 1;
+  if (front === 'S') return { u: col - c0, d: r1 - row };
+  if (front === 'N') return { u: col - c0, d: row - r0 };
+  if (front === 'E') return { u: row - r0, d: c1 - col };
+  return { u: row - r0, d: col - c0 };
+}
+// 分區裡每一格、每條符合 isEdge(鄰格型別,row,col) 的邊（預設＝臨 aisle）。e.box(a0,a1,k0,k1,h0,h1,color)：
+// a 沿著這條邊（0~1）、k 從邊往分區內量（k<0＝伸進走道）；e.pt(a,k)＝同一套座標換成本地 [u,d]；
+// side＝這條邊在分區本地的哪一側（front＝d 小那側）。
+function regionEdges(region, front, isEdge = (type) => type === 'aisle') {
+  const out = [], bbox = region.bbox;
+  for (const { row, col } of region.cells) {
+    for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      if (!isEdge((World.cellType[row + dr] || [])[col + dc], row + dr, col + dc)) continue;
+      const p = worldToLocal(bbox, front, row, col), q = worldToLocal(bbox, front, row + 1, col + 1);
+      const u0 = Math.min(p.u, q.u), u1 = Math.max(p.u, q.u), d0 = Math.min(p.d, q.d), d1 = Math.max(p.d, q.d);
+      const m = worldToLocal(bbox, front, row + 0.5 + dr * 0.5, col + 0.5 + dc * 0.5);
+      const side = Math.abs(m.d - d0) < 1e-6 ? 'front' : Math.abs(m.d - d1) < 1e-6 ? 'back' : Math.abs(m.u - u0) < 1e-6 ? 'left' : 'right';
+      const at = { front: (a0, a1, k0, k1) => [u0 + a0, u0 + a1, d0 + k0, d0 + k1],
+        back: (a0, a1, k0, k1) => [u0 + a0, u0 + a1, d1 - k1, d1 - k0],
+        left: (a0, a1, k0, k1) => [u0 + k0, u0 + k1, d0 + a0, d0 + a1],
+        right: (a0, a1, k0, k1) => [u1 - k1, u1 - k0, d0 + a0, d0 + a1] }[side];
+      out.push({ row, col, side, box: (a0, a1, k0, k1, h0, h1, color) => bx(...at(a0, a1, k0, k1), h0, h1, color),
+        pt: (a, k) => { const p = at(a, a, k, k); return [p[0], p[2]]; } });
+    }
+  }
+  return out;
+}
+// 斜的／線狀的構件（isoBox 只能畫正交方塊）：beam＝兩個本地 [u,d,h] 點之間的一根料（plain＝不描黑邊，
+// 給磁磚縫這種細線用）；poly＝本地 [u,d,h] 點圍成的平面（帆布屋面）。
+const beam = (a, b, w, color, plain) => ({ beam: [a, b], w, color, plain, h0: Math.min(a[2], b[2]) });
+const poly = (pts, color) => ({ poly: pts, color, h0: Math.min(...pts.map(p => p[2])) });
+
+// ---- 小物件（本地公尺，(u,d)＝左前角）----
+// 紅色塑膠凳／木凳＝同一張貼圖（red_chair.obj 烘焙，PROP_SPRITES.chair，約 0.35×0.46m 圓凳，繞 Y 軸對稱所以不分朝向）。
+// sprite 件以腳下中心為錨點；(u,d) 沿用舊的「左前角」寫法，+0.14 換成中心。
+const stool = (u, d, wood) => [{ sprite: { name: 'chair', color: wood ? 'wood' : 'red', at: [u + 0.14, d + 0.14, 0] } }];
+const bucket = (u, d) => [bx(u, u + 0.3, d, d + 0.3, 0, 0.33, '#f7fafc'), bx(u + 0.03, u + 0.27, d + 0.03, d + 0.27, 0.33, 0.35, '#90cdf4')];
+const trashCan = (u, d) => [bx(u, u + 0.3, d, d + 0.3, 0, 0.5, '#4a5568'), bx(u - 0.02, u + 0.32, d - 0.02, d + 0.32, 0.5, 0.54, '#2d3748')];
+const hoseReel = (u, d) => [bx(u, u + 0.3, d, d + 0.12, 0, 0.4, '#2f855a'), bx(u + 0.11, u + 0.19, d - 0.04, d, 0.14, 0.26, '#1a202c')];
+function crate(u, d, w, dp, h0, color, fill) { // 塑膠菜籃：籃身＋冒出籃口的蔬果＋朝走道那面的提把孔
+  const h1 = h0 + 0.3;
+  return [
+    bx(u, u + w, d, d + dp, h0, h1, color),
+    bx(u + 0.04, u + w - 0.04, d + 0.04, d + dp - 0.04, h1, h1 + 0.05, fill),
+    bx(u + w / 2 - 0.07, u + w / 2 + 0.07, d - 0.01, d, h1 - 0.1, h1 - 0.05, '#1a202c'),
+  ];
+}
+function carton(u, d, w, dp, h0, h, color) { // 紙箱＋頂面封箱膠帶
+  return [bx(u, u + w, d, d + dp, h0, h0 + h, color), bx(u + w / 2 - 0.04, u + w / 2 + 0.04, d, d + dp, h0 + h, h0 + h + 0.01, '#e8d5a9')];
+}
+
+// ---- 表 A：桌面空間的磨石子檯面（照片：厚檯面朝走道出挑、底部深色內縮帶、不鏽鋼柱＋橫管、裸燈泡）----
+function counterBase(W, D) {
+  const mid = D / 2, n = Math.max(1, Math.round(W / 1.6));
+  return [
+    bx(0.1, W - 0.1, 0.14, D - 0.1, 0, 0.14, '#8f8a7e', true), // 底部內縮深色帶
+    bx(0.06, W - 0.06, 0.1, D - 0.06, 0.14, 0.78, '#b9b4a6', true), // 磨石子檯身
+    bx(0, W, 0, D, 0.78, 0.9, '#e3dcc8', true), // 檯面：朝走道（d=0）比檯身出挑
+    ...[[0, 0], [W - 0.08, 0], [0, D - 0.08], [W - 0.08, D - 0.08]].map(([u, d]) => bx(u, u + 0.08, d, d + 0.08, 0.9, 2.6, '#cbd5e0')),
+    bx(0, W, 0, 0.06, 2.45, 2.52, '#a0aec0'), bx(0, W, D - 0.06, D, 2.45, 2.52, '#a0aec0'), // 前後橫管
+    bx(0, 0.06, 0, D, 2.45, 2.52, '#a0aec0'), bx(W - 0.06, W, 0, D, 2.45, 2.52, '#a0aec0'), // 左右橫管
+    bx(0, W, mid - 0.03, mid + 0.03, 2.45, 2.52, '#a0aec0'), // 中間吊燈泡的橫管
+    ...slots(0, W, n, (a, b) => { const u = (a + b) / 2; return [
+      bx(u - 0.01, u + 0.01, mid - 0.01, mid + 0.01, 2.02, 2.45, '#2d3748'), // 電線
+      bx(u - 0.06, u + 0.06, mid - 0.06, mid + 0.06, 1.9, 2.02, '#fff3b0'), // 裸燈泡
+    ]; }),
+  ];
+}
+// ---- 表 B：檯面上的商品（放檯面前半、朝顧客）----
+const COUNTER_GOODS = {
+  熟食類: (W) => slots(0.15, W - 0.15, Math.max(2, Math.round(W / 0.8)), (a, b, i) => [
+    [bx(a, b, 0.14, 0.55, 0.9, 0.93, '#cbd5e0'), bx(a + 0.05, b - 0.05, 0.19, 0.5, 0.93, 0.96, '#d69e2e')], // 不鏽鋼餐盤＋菜
+    [bx(a, b, 0.14, 0.5, 0.9, 1.06, '#e2e8f0'), bx(a + 0.04, b - 0.04, 0.18, 0.46, 1.06, 1.09, '#e53e3e')], // 鐵網籃
+    [bx(a, b, 0.12, 0.55, 0.9, 1.2, '#edf2f7'), bx(a, b, 0.1, 0.12, 1.08, 1.15, '#c53030')], // 小保溫箱
+  ][i % 3]),
+  肉類: (W) => [
+    bx(0.12, Math.max(0.6, W * 0.5), 0.14, 0.6, 0.9, 0.97, '#b7844a'), // 木砧板
+    ...slots(0.18, Math.max(0.6, W * 0.5) - 0.06, 3, (a, b) => [bx(a, b, 0.22, 0.5, 0.97, 1.02, '#f4a6a6')]), // 肉塊
+    ...(W >= 2 ? [bx(W * 0.55, W * 0.55 + 0.3, 0.18, 0.46, 0.9, 1.02, '#e53e3e')] : []), // 紅色臉盆
+    bx(W - 0.38, W - 0.1, 0.2, 0.45, 0.9, 1.0, '#e2e8f0'), bx(W - 0.33, W - 0.15, 0.18, 0.21, 1.0, 1.15, '#f7fafc'), // 磅秤＋錶盤
+  ],
+  魚類: (W) => [
+    bx(0.1, W - 0.35, 0.12, 0.62, 0.9, 0.95, '#bee3f8'), // 淺藍冰盤
+    ...slots(0.15, W - 0.4, Math.max(2, Math.round(W / 0.35)), (a, b, i) =>
+      [bx(a, b, i % 2 ? 0.2 : 0.38, i % 2 ? 0.32 : 0.5, 0.95, 0.99, '#a0aec0')]), // 銀灰色魚，兩排錯開
+    bx(W - 0.3, W - 0.08, 0.18, 0.5, 0.9, 1.12, '#38a169'), // 綠色塑膠籃
+  ],
+  閱讀: (W) => [
+    ...slots(0.12, W - 0.35, Math.max(2, Math.round(W / 0.5)), (a, b, i) =>
+      [bx(a, b, 0.15, 0.45, 0.9, 0.96 + (i % 3) * 0.04, GOODS_COLORS[i % 5])]), // 平放書堆
+    bx(W - 0.28, W - 0.12, 0.3, 0.36, 0.9, 1.3, '#744210'), // 小展示架
+  ],
+  無人商店: (W) => [
+    ...slots(0.12, W - 0.4, Math.max(1, Math.round(W / 0.5)), (a, b, i) => [
+      bx(a, b, 0.15, 0.5, 0.9, 1.15, '#e2e8f0'), bx(a + 0.03, b - 0.03, 0.13, 0.15, 0.94, 1.1, GOODS_COLORS[i % 5])]), // 小展示盒
+    bx(W - 0.35, W - 0.15, 0.15, 0.35, 0.9, 1.05, '#744210'), // 誠實箱
+    bx(W - 0.12, W - 0.07, 0.2, 0.3, 0.9, 1.12, '#f7fafc'), // QR code 立牌
+  ],
+  果菜類: (W) => slots(0.12, W - 0.12, Math.max(2, Math.round(W / 0.55)), (a, b, i) => [
+    bx(a, b, 0.6, 0.85, 0.9, 0.93, '#d6bc8a'), // 竹篩（後排）
+    bx(a, b, 0.12, 0.52, 0.9, 1.05, i % 2 ? '#dd6b20' : '#38a169'), // 菜籃
+    bx(a + 0.04, b - 0.04, 0.16, 0.48, 1.05, 1.13, ['#e53e3e', '#68d391', '#ecc94b', '#ed8936'][i % 4]), // 蔬果
+  ]),
+  日用品類: (W) => slots(0.12, W - 0.12, Math.max(2, Math.round(W / 0.5)), (a, b, i) => [
+    bx(a, b, 0.12, 0.5, 0.9, 1.04, '#cbd5e0'), // 鐵網籃
+    bx(a + 0.04, (a + b) / 2, 0.16, 0.3, 1.04, 1.1, GOODS_COLORS[i % 5]),
+    bx((a + b) / 2, b - 0.04, 0.3, 0.46, 1.04, 1.08, GOODS_COLORS[(i + 2) % 5]),
+  ]),
+};
+// 前橫管上的布簾（整修後攤位常見，例：叁捌菜攤仔）＋一條深色「字」帶
+const banner = (W) => [bx(0.1, W - 0.1, 0.01, 0.04, 1.95, 2.45, '#f7f3e8'), bx(W * 0.25, W * 0.75, 0, 0.01, 2.1, 2.28, '#2d3748')];
+const RAIL_HANGING = {
+  熟食類: banner,
+  閱讀: banner,
+  肉類: (W) => slots(0.1, W - 0.1, Math.max(3, Math.round(W / 0.22)), (a, b, i) => { // 前橫管一排 S 鉤：肉／香腸／空鉤
+    const u = (a + b) / 2;
+    return [
+      bx(u - 0.01, u + 0.01, 0.02, 0.04, 2.3, 2.45, '#4a5568'),
+      ...[[bx(u - 0.06, u + 0.06, 0, 0.08, 1.75, 2.3, '#c05656')], [bx(u - 0.025, u + 0.025, 0.01, 0.06, 1.85, 2.3, '#8b2e2e')], []][i % 3],
+    ];
+  }),
+};
+// ---- 表 B：工作空間後角落的低矮小物（(u,d)＝那組東西的左前角）----
+const WORKSPACE_PROPS = {
+  熟食類: (u, d) => [...stool(u, d, true), ...bucket(u + 0.4, d)],
+  肉類: (u, d) => bucket(u + 0.4, d),
+  魚類: (u, d) => [...bucket(u, d), ...hoseReel(u + 0.4, d + 0.1)],
+  閱讀: (u, d) => stool(u + 0.4, d, true),
+  果菜類: (u, d) => [...crate(u, d, 0.4, 0.3, 0, '#2b6cb0', '#68d391'), ...crate(u, d, 0.4, 0.3, 0.3, '#2f855a', '#ed8936')],
+  日用品類: (u, d) => [...carton(u, d, 0.4, 0.34, 0, 0.3, '#b7844a'), ...carton(u + 0.04, d + 0.02, 0.32, 0.3, 0.3, 0.26, '#c29560')],
+};
+
+// ---- 表 B：工作設備區的真實尺寸單元（u 絕對公尺、b＝離後牆距離、h 絕對公尺），placeUnitRow() 靠後牆排 ----
+const FRIDGE = { unitW: 1.2, pieces: [ // 立式四門不鏽鋼冰箱
+  ...[[0.1, 0.1], [0.1, 0.66], [1.04, 0.1], [1.04, 0.66]].map(([u, b]) =>
+    ({ u0: u, u1: u + 0.06, b0: b, b1: b + 0.06, h0: 0, h1: 0.12, color: '#4a5568' })), // 四支腳
+  { u0: 0.05, u1: 1.15, b0: 0.05, b1: 0.78, h0: 0.12, h1: 1.85, color: '#b8c0c9' }, // 不鏽鋼櫃體
+  { u0: 0.08, u1: 1.12, b0: 0.76, b1: 0.79, h0: 0.12, h1: 0.2, color: '#6b7280' }, // 踢腳板
+  ...[[0.09, 0.58], [0.62, 1.11]].flatMap(([u0, u1]) => [[0.22, 0.98], [1.02, 1.8]].map(([h0, h1]) =>
+    ({ u0, u1, b0: 0.78, b1: 0.8, h0, h1, color: '#dde3ea' }))), // 2×2 四片門（門縫露出櫃體色）
+  ...[[0.52, 0.55], [0.65, 0.68]].flatMap(([u0, u1]) => [[0.5, 0.8], [1.2, 1.5]].map(([h0, h1]) =>
+    ({ u0, u1, b0: 0.8, b1: 0.84, h0, h1, color: '#2d3748' }))), // 直把手
+  { u0: 0.12, u1: 1.08, b0: 0.12, b1: 0.7, h0: 1.85, h1: 2.02, color: '#8a95a3' }, // 壓縮機罩
+  ...[1.88, 1.93, 1.98].map(h => ({ u0: 0.2, u1: 0.85, b0: 0.7, b1: 0.72, h0: h, h1: h + 0.025, color: '#2d3748' })), // 散熱格柵
+  { u0: 0.92, u1: 1.02, b0: 0.7, b1: 0.72, h0: 1.9, h1: 1.97, color: '#48bb78' }, // 溫度燈
+] };
+const STOVE = { unitW: 1.3, pieces: [ // 不鏽鋼爐台＋兩口爐（湯鍋／炒鍋）＋旁邊的瓦斯桶
+  { u0: 0.05, u1: 0.95, b0: 0.05, b1: 0.7, h0: 0, h1: 0.75, color: '#a0aec0' },
+  { u0: 0.08, u1: 0.92, b0: 0.7, b1: 0.72, h0: 0.55, h1: 0.62, color: '#718096' }, // 前緣開關面板
+  { u0: 0.15, u1: 0.42, b0: 0.2, b1: 0.5, h0: 0.75, h1: 0.78, color: '#1a202c' },
+  { u0: 0.55, u1: 0.82, b0: 0.2, b1: 0.5, h0: 0.75, h1: 0.78, color: '#1a202c' },
+  { u0: 0.17, u1: 0.4, b0: 0.22, b1: 0.48, h0: 0.78, h1: 1.05, color: '#4a5568' }, // 湯鍋
+  { u0: 0.2, u1: 0.37, b0: 0.25, b1: 0.45, h0: 1.05, h1: 1.08, color: '#718096' }, // 鍋蓋
+  { u0: 0.58, u1: 0.8, b0: 0.24, b1: 0.46, h0: 0.78, h1: 0.86, color: '#2d3748' }, // 炒鍋
+  { u0: 1.0, u1: 1.25, b0: 0.1, b1: 0.35, h0: 0, h1: 0.85, color: '#90a4ae' }, // 瓦斯桶
+  { u0: 1.08, u1: 1.17, b0: 0.18, b1: 0.27, h0: 0.85, h1: 0.95, color: '#c53030' }, // 開關
+] };
+const GRINDER = { unitW: 0.8, pieces: [ // 不鏽鋼工作架（四腳＋上下層板）＋絞肉機
+  ...[[0.1, 0.1], [0.64, 0.1], [0.1, 0.54], [0.64, 0.54]].map(([u, b]) =>
+    ({ u0: u, u1: u + 0.05, b0: b, b1: b + 0.05, h0: 0, h1: 0.76, color: '#a0aec0' })),
+  { u0: 0.1, u1: 0.69, b0: 0.1, b1: 0.59, h0: 0.15, h1: 0.18, color: '#cbd5e0' },
+  { u0: 0.08, u1: 0.71, b0: 0.08, b1: 0.61, h0: 0.76, h1: 0.8, color: '#cbd5e0' },
+  { u0: 0.25, u1: 0.55, b0: 0.2, b1: 0.45, h0: 0.8, h1: 1.05, color: '#e2e8f0' }, // 機身
+  { u0: 0.3, u1: 0.5, b0: 0.22, b1: 0.4, h0: 1.05, h1: 1.2, color: '#f7fafc' }, // 進料斗
+  { u0: 0.34, u1: 0.46, b0: 0.45, b1: 0.58, h0: 0.86, h1: 0.96, color: '#cbd5e0' }, // 出料口（朝前）
+] };
+const CHEST_FREEZER = { unitW: 1.3, pieces: [ // 臥式冷凍櫃＋上面疊的白色保麗龍箱
+  { u0: 0.08, u1: 1.22, b0: 0.08, b1: 0.72, h0: 0, h1: 0.1, color: '#718096' },
+  { u0: 0.05, u1: 1.25, b0: 0.05, b1: 0.75, h0: 0.1, h1: 0.85, color: '#edf2f7' },
+  { u0: 0.05, u1: 1.25, b0: 0.75, b1: 0.77, h0: 0.72, h1: 0.74, color: '#a0aec0' }, // 上蓋縫
+  { u0: 0.55, u1: 0.75, b0: 0.75, b1: 0.79, h0: 0.62, h1: 0.7, color: '#4a5568' }, // 把手
+  { u0: 1.05, u1: 1.18, b0: 0.75, b1: 0.77, h0: 0.25, h1: 0.3, color: '#48bb78' }, // 溫度燈
+  { u0: 0.1, u1: 0.6, b0: 0.1, b1: 0.5, h0: 0.85, h1: 1.1, color: '#ffffff' },
+  { u0: 0.65, u1: 1.15, b0: 0.1, b1: 0.5, h0: 0.85, h1: 1.1, color: '#f7fafc' },
+  { u0: 0.15, u1: 0.55, b0: 0.12, b1: 0.48, h0: 1.1, h1: 1.35, color: '#ffffff' },
+] };
+const PALLET = [ // 木棧板：底座＋三條面板
+  { u0: 0.05, u1: 0.95, b0: 0.08, b1: 0.9, h0: 0, h1: 0.08, color: '#7c5a3a', base: true },
+  ...[0.08, 0.37, 0.66].map(b => ({ u0: 0.05, u1: 0.95, b0: b, b1: b + 0.24, h0: 0.08, h1: 0.12, color: '#b08254', base: true })),
+];
+// 棧板上的貨：crate()/carton() 是本地 (u,d)，這裡借 d 當 b 用，換成單元格式（d 小＝靠後牆）
+const asUnit = (unitW, pieces) => ({ unitW, pieces: pieces.map(p => ({ u0: p.u0, u1: p.u1, b0: 1 - p.d1, b1: 1 - p.d0, h0: p.h0, h1: p.h1, color: p.color, base: p.base })) });
+const PRODUCE = { unitW: 1.0, pieces: [...PALLET, ...asUnit(1.0, [ // 果菜類：塑膠菜籃 2×2＋後排疊一層
+  ...crate(0.08, 0.12, 0.4, 0.36, 0.12, '#d69e2e', '#ed8936'), ...crate(0.52, 0.12, 0.4, 0.36, 0.12, '#2b6cb0', '#ecc94b'),
+  ...crate(0.08, 0.52, 0.4, 0.36, 0.12, '#2b6cb0', '#e53e3e'), ...crate(0.52, 0.52, 0.4, 0.36, 0.12, '#2f855a', '#68d391'),
+  ...crate(0.08, 0.52, 0.4, 0.36, 0.42, '#2f855a', '#9ae6b4'),
+]).pieces] };
+const CARTONS = { unitW: 1.0, pieces: [...PALLET, ...asUnit(1.0, [ // 日用品/倉庫/無人商店：三層錯落紙箱
+  ...carton(0.08, 0.12, 0.4, 0.36, 0.12, 0.3, '#a8773f'), ...carton(0.52, 0.12, 0.4, 0.36, 0.12, 0.3, '#b7844a'),
+  ...carton(0.08, 0.5, 0.4, 0.38, 0.12, 0.34, '#b7844a'), ...carton(0.52, 0.5, 0.4, 0.38, 0.12, 0.34, '#c29560'),
+  ...carton(0.1, 0.52, 0.36, 0.34, 0.46, 0.3, '#c29560'), ...carton(0.54, 0.54, 0.36, 0.34, 0.46, 0.26, '#a8773f'),
+  ...carton(0.2, 0.58, 0.3, 0.28, 0.76, 0.22, '#b7844a'),
+]).pieces] };
+// ---- 用餐區＝共融區（2026-10-01 依使用者照片 共融區.webp 建模）：米黃磨石子地磚、深色木柱立在白磁磚墩上
+// ＋柱面直立燈管（銅色管夾）、臨牆的白磁磚腰牆、不鏽鋼半圓底座白圓桌、白磁磚方塊凳 ----
+const TILE = '#f4f2ec', GROUT = '#b9b4a6';
+// 白磁磚塊＋四個側面與頂面的磁磚縫（縫是貼在面上的細線；背面的線中心比方塊遠，排序時會先畫、被方塊蓋掉）
+function tiled(u0, u1, d0, d1, h0, h1, nu, nd, nh) {
+  const out = [bx(u0, u1, d0, d1, h0, h1, TILE)], seam = (a, b) => out.push(beam(a, b, 0.012, GROUT, true));
+  for (let i = 1; i < nh; i++) {
+    const h = h0 + (h1 - h0) * i / nh;
+    seam([u0, d0, h], [u1, d0, h]); seam([u0, d1, h], [u1, d1, h]); seam([u0, d0, h], [u0, d1, h]); seam([u1, d0, h], [u1, d1, h]);
+  }
+  for (let i = 1; i < nu; i++) {
+    const u = u0 + (u1 - u0) * i / nu;
+    seam([u, d0, h0], [u, d0, h1]); seam([u, d1, h0], [u, d1, h1]); seam([u, d0, h1], [u, d1, h1]);
+  }
+  for (let i = 1; i < nd; i++) {
+    const d = d0 + (d1 - d0) * i / nd;
+    seam([u0, d, h0], [u0, d, h1]); seam([u1, d, h0], [u1, d, h1]); seam([u0, d, h1], [u1, d, h1]);
+  }
+  return out;
+}
+function column(u, d) { // 木柱＋磁磚墩＋朝走道面與側面各一支燈管
+  const c = 0.075;
+  return [
+    ...tiled(u - 0.2, u + 0.2, d - 0.2, d + 0.2, 0, 0.35, 2, 2, 2),
+    bx(u - 0.14, u + 0.14, d - 0.14, d + 0.14, 0.35, 0.4, '#8a5a36'), // 柱腳木座
+    bx(u - c, u + c, d - c, d + c, 0.4, 3.0, '#7a4a2a'),
+    ...[[u - 0.02, u + 0.02, d - c - 0.05, d - c], [u + c, u + c + 0.05, d - 0.02, d + 0.02]].flatMap(([a0, a1, b0, b1]) => [
+      bx(a0, a1, b0, b1, 1.3, 2.3, '#fff3c4'), // 燈管
+      bx(a0 - 0.015, a1 + 0.015, b0 - 0.015, b1 + 0.015, 1.24, 1.3, '#b5532a'),
+      bx(a0 - 0.015, a1 + 0.015, b0 - 0.015, b1 + 0.015, 2.3, 2.36, '#b5532a'), // 銅色管夾
+    ]),
+  ];
+}
+function diningSet(u, d) { // 佔 1.0×1.0：靠後的圓桌（半圓底座＋V 形支撐＋圓桌面）＋前面收在桌緣下的磁磚方塊凳
+  const cu = u + 0.5, cd = d + 0.62;
+  return [
+    bx(cu - 0.3, cu + 0.3, cd - 0.12, cd + 0.26, 0, 0.42, '#c9cdd2'), bx(cu - 0.2, cu + 0.2, cd - 0.2, cd - 0.12, 0, 0.42, '#d9dde1'), // 半圓底座（前緣收一階近似圓弧）
+    bx(cu - 0.1, cu + 0.1, cd - 0.02, cd + 0.2, 0.42, 0.72, '#a9adb2'), // V 形支撐
+    bx(cu - 0.5, cu + 0.5, cd - 0.14, cd + 0.3, 0.72, 0.75, '#fbfbf8'), bx(cu - 0.36, cu + 0.36, cd - 0.3, cd + 0.36, 0.72, 0.75, '#fbfbf8'), // 圓桌面：兩片十字疊
+    ...tiled(u + 0.04, u + 0.44, d + 0.02, d + 0.42, 0, 0.42, 2, 2, 2),
+  ];
+}
+function commonAreaPieces(region, front, W, D) {
+  const cells = new Set(region.cells.map(c => c.row + ',' + c.col)), out = [];
+  const has = (u, d) => { const w = shopLocalToWorld(region.bbox, front, u, d); return cells.has(Math.floor(w.row) + ',' + Math.floor(w.col)); };
+  for (const { row, col } of region.cells) { // 地磚逐格鋪（分區不一定是矩形）
+    const p = worldToLocal(region.bbox, front, row, col), q = worldToLocal(region.bbox, front, row + 1, col + 1);
+    out.push(bx(Math.min(p.u, q.u), Math.max(p.u, q.u), Math.min(p.d, q.d), Math.max(p.d, q.d), 0, 0.02, '#d9c896', true));
+  }
+  const n = Math.max(1, Math.floor(W / 1.5));
+  for (let dRow = D - 1; dRow > -0.01; dRow -= 2) for (let i = 0; i < n; i++) { // 桌組：每 2m 深一排、靠該排後緣
+    const u = (i + 0.5) * W / n - 0.5;
+    if (has(u + 0.5, dRow + 0.6) && has(u + 0.25, dRow + 0.2)) out.push(...diningSet(u, dRow));
+  }
+  if (W >= 2 && D >= 2) { // 木柱：放在兩排桌組之間的空檔，沿 u 每約 3m 一支
+    const m = Math.max(2, Math.round(W / 3) + 1);
+    for (let d = D - 1.5; d > 0.2; d -= 2) for (let i = 0; i < m; i++) {
+      const u = 0.3 + (W - 0.6) * i / (m - 1);
+      if (has(u, d)) out.push(...column(u, d));
+    }
+  }
+  // 白磁磚腰牆：貼在「外面不是走道、也不是共融區自己」的邊（資料裡共融區沒有直接貼市場外牆的格子）
+  for (const e of regionEdges(region, front, (t, r, c) => t !== undefined && t !== 'aisle' && !cells.has(r + ',' + c))) {
+    out.push(e.box(0, 1, 0, 0.05, 0, 0.9, TILE));
+    for (const h of [0.3, 0.6]) out.push(beam([...e.pt(0, 0.05), h], [...e.pt(1, 0.05), h], 0.012, GROUT, true));
+    for (const a of [1 / 3, 2 / 3]) out.push(beam([...e.pt(a, 0.05), 0], [...e.pt(a, 0.05), 0.9], 0.012, GROUT, true));
+  }
+  return out;
+}
+// ---- 移動攤販（2026-10-01 依使用者照片建模）：A 字木架市集帳——兩組淺色木 A 架＋脊樑、白帆布人字頂、
+// 鋪白桌布的長桌、紅色貨箱、立式旗幟；桌上另依 category 放商品 ----
+function tentPieces(category, W, D) {
+  const WOOD = '#d8b888', H = 2.3, n = Math.max(1, Math.floor(W / 2.4)), dc = D / 2, s = Math.min(0.8, D / 2 - 0.1), out = [];
+  for (let i = 0; i < n; i++) {
+    const cu = (i + 0.5) * W / n, L = Math.min(1.1, W / n / 2 - 0.2), k = 1 - 0.8 / H, g = cu - L + 0.18;
+    for (const u of [cu - L, cu + L]) out.push(
+      beam([u, dc - s, 0], [u, dc, H], 0.07, WOOD), beam([u, dc + s, 0], [u, dc, H], 0.07, WOOD), // A 字兩支斜腳
+      beam([u, dc - s * k, 0.8], [u, dc + s * k, 0.8], 0.06, WOOD)); // A 的橫檔
+    out.push(
+      beam([cu - L - 0.2, dc, H], [cu + L + 0.2, dc, H], 0.07, WOOD), // 脊樑
+      bx(cu - L + 0.08, cu + L - 0.08, dc - 0.35, dc + 0.35, 0.3, 0.84, '#f7f7f2'), // 鋪白桌布的長桌
+      bx(cu + 0.1, cu + 0.6, dc - 0.2, dc + 0.12, 0.84, 0.98, '#c53030'), bx(cu + 0.14, cu + 0.56, dc - 0.16, dc + 0.08, 0.98, 1.0, '#7b1f1f'), // 紅色貨箱
+      ...(category === '熟食類'
+        ? [bx(g, g + 0.4, dc - 0.22, dc + 0.1, 0.84, 0.87, '#cbd5e0'), bx(g + 0.05, g + 0.35, dc - 0.17, dc + 0.05, 0.87, 0.9, '#d69e2e'),
+          bx(g + 0.48, g + 0.78, dc - 0.2, dc + 0.12, 0.84, 1.08, '#edf2f7')] // 餐盤＋保溫箱
+        : [bx(g, g + 0.3, dc - 0.2, dc + 0.12, 0.84, 1.06, '#e2e8f0'), bx(g + 0.03, g + 0.27, dc - 0.22, dc - 0.2, 0.88, 1.02, GOODS_COLORS[i % 5]),
+          bx(g + 0.4, g + 0.6, dc - 0.1, dc + 0.1, 0.84, 0.98, '#744210')]), // 展示盒＋誠實箱
+      bx(cu - L + 0.2, cu - L + 0.7, dc + 0.42, dc + 0.46, 0.05, 1.9, '#b8894e'), bx(cu - L + 0.28, cu - L + 0.62, dc + 0.41, dc + 0.42, 0.7, 1.4, '#3b2a1a'), // 立式旗幟＋圖樣
+      poly([[cu - L - 0.25, dc, H + 0.04], [cu + L + 0.25, dc, H + 0.04], [cu + L + 0.25, dc + s * 0.8, 1.85], [cu - L - 0.25, dc + s * 0.8, 1.85]], '#dedad0'), // 後坡帆布
+      poly([[cu - L - 0.25, dc, H + 0.04], [cu + L + 0.25, dc, H + 0.04], [cu + L + 0.25, dc - s * 0.8, 1.85], [cu - L - 0.25, dc - s * 0.8, 1.85]], '#f8f6f0')); // 前坡帆布
+  }
+  return out;
+}
+const EQUIPMENT_UNITS = {
+  熟食類: [FRIDGE, STOVE], 肉類: [FRIDGE, GRINDER], 魚類: [CHEST_FREEZER],
+  果菜類: [PRODUCE], 日用品類: [CARTONS], 無人商店: [CARTONS], // 倉庫不在這裡：一律畫成封閉攤位
+};
+// 雜貨/衣服/閱讀維持分數座標樣板（0~1 × 分區寬深），墊在矮平台上；資料裡只有閱讀真的會出現。
+const GOODS_ALONG = (n, fu0, fu1, fd0, fd1, h0, h1, off) => slots(fu0, fu1, n, (a, b, i) =>
+  [{ fu0: a, fu1: b, fd0, fd1, h0, h1, color: GOODS_COLORS[(i + off) % 5] }]);
+const EQUIPMENT_FRACTION = {
+  雜貨類: [
+    { fu0: 0.12, fd0: 0.8, fu1: 0.88, fd1: 0.86, h0: 0.1, h1: 1.45, color: '#8b5e3c' },
+    ...GOODS_ALONG(3, 0.12, 0.88, 0.62, 0.82, 0.1, 0.4, 0),
+    { fu0: 0.12, fd0: 0.58, fu1: 0.88, fd1: 0.86, h0: 0.45, h1: 0.5, color: '#a0714f' },
+    ...GOODS_ALONG(3, 0.12, 0.88, 0.62, 0.82, 0.5, 0.78, 1),
+    { fu0: 0.12, fd0: 0.58, fu1: 0.88, fd1: 0.86, h0: 0.85, h1: 0.9, color: '#a0714f' },
+    ...GOODS_ALONG(3, 0.12, 0.88, 0.62, 0.82, 0.9, 1.18, 2),
+    { fu0: 0.12, fd0: 0.58, fu1: 0.88, fd1: 0.86, h0: 1.25, h1: 1.3, color: '#a0714f' },
+    { fu0: 0.15, fd0: 0.12, fu1: 0.85, fd1: 0.42, h0: 0.1, h1: 0.55, color: '#c4a878' },
+  ],
+  衣服類: [
+    { fu0: 0.1, fd0: 0.62, fu1: 0.16, fd1: 0.7, h0: 0.1, h1: 1.7, color: '#718096' },
+    { fu0: 0.84, fd0: 0.62, fu1: 0.9, fd1: 0.7, h0: 0.1, h1: 1.7, color: '#718096' },
+    ...GOODS_ALONG(4, 0.18, 0.82, 0.56, 0.76, 0.85, 1.6, 4),
+    { fu0: 0.1, fd0: 0.63, fu1: 0.9, fd1: 0.69, h0: 1.62, h1: 1.7, color: '#4a5568' },
+    { fu0: 0.15, fd0: 0.1, fu1: 0.85, fd1: 0.35, h0: 0.1, h1: 0.45, color: '#b794c4' },
+    ...GOODS_ALONG(3, 0.15, 0.85, 0.13, 0.32, 0.45, 0.6, 1),
+  ],
+  閱讀: [
+    { fu0: 0.12, fd0: 0.8, fu1: 0.88, fd1: 0.86, h0: 0.1, h1: 1.35, color: '#2b6cb0' },
+    ...GOODS_ALONG(4, 0.12, 0.88, 0.74, 0.8, 0.2, 0.5, 0),
+    ...GOODS_ALONG(4, 0.12, 0.88, 0.74, 0.8, 0.6, 0.9, 2),
+    ...GOODS_ALONG(4, 0.12, 0.88, 0.74, 0.8, 1.0, 1.3, 1),
+    { fu0: 0.15, fd0: 0.15, fu1: 0.85, fd1: 0.45, h0: 0.1, h1: 0.3, color: '#4299e1' },
+    ...GOODS_ALONG(3, 0.15, 0.85, 0.2, 0.4, 0.3, 0.45, 3),
+  ],
+};
+const EQUIPMENT_DEFAULT = [{ fu0: 0.2, fd0: 0.2, fu1: 0.8, fd1: 0.8, h0: 0.1, h1: 0.9, color: '#718096' }];
+// 真實尺寸單元沿 u 靠後牆排：輪流取 seq 裡的單元，放得下就放（至少一台）；總寬超過分區時等比例縮 u。
+function placeUnitRow(seq, W, D) {
+  const row = [];
+  for (let used = 0, i = 0; i < 20; i++) {
+    const unit = seq[i % seq.length];
+    if (row.length && used + unit.unitW > W) break;
+    row.push(unit); used += unit.unitW;
+  }
+  const total = row.reduce((s, x) => s + x.unitW, 0), s = Math.min(1, W / total), out = [];
+  let u = (W - total * s) / 2;
+  for (const unit of row) {
+    for (const p of unit.pieces) out.push(bx(u + p.u0 * s, u + p.u1 * s, D - p.b1, D - p.b0, p.h0, p.h1, p.color, p.base));
+    u += unit.unitW * s;
+  }
+  return out;
+}
+// stall_models 的 closed 造型（u/d 可以是 W/D 公式）換成本地公尺，跟其他零件一起排序畫。
+function modelPieces(model, W, D) {
+  return model.pieces.map(p => bx(ev(p.u0, W, D), ev(p.u1, W, D), ev(p.d0, W, D), ev(p.d1, W, D), p.h0, p.h1, p.color));
+}
+function closedSign(W, bbox) { // 鐵捲門上方小招牌（顏色依位置固定挑一個）
+  const c = ['#c53030', '#2b6cb0', '#2f855a'][(bbox.minRow * 7 + bbox.minCol * 13) % 3];
+  return [bx(W * 0.2, W * 0.8, -0.07, -0.02, 2.82, 3.12, c), bx(W * 0.26, W * 0.74, -0.08, -0.07, 2.88, 3.06, '#f7fafc')];
+}
+
+// ---- 表 C：臨走道雜物。哪幾格放、放哪種由 row+col 固定決定（不閃動、不像重複圖案）----
+function edgeClutter(zone, e, room) {
+  const alt = (e.row + e.col) % 2 === 0, v = (e.row * 7 + e.col * 13) % 3, b = e.box;
+  if (zone === '工作設備區') return [
+    b(0, 1, 0.02, 0.07, 0.05, 0.12, '#8b5e3c'), b(0, 1, 0.02, 0.07, 1.02, 1.09, '#8b5e3c'), // 木板隔柵：上下橫檔
+    ...Array.from({ length: 6 }, (_, i) => b(0.04 + i * 0.16, 0.12 + i * 0.16, 0.03, 0.06, 0, 1.12, '#b7844a')), // 直條板
+    ...(alt && e.side === 'front' && room >= 0.5 ? [ // 設備前還有空間才堆：紙箱＋保麗龍箱
+      b(0.15, 0.55, 0.12, 0.45, 0, 0.3, '#b7844a'), b(0.33, 0.37, 0.12, 0.45, 0.3, 0.31, '#e8d5a9'),
+      b(0.2, 0.5, 0.15, 0.42, 0.3, 0.55, '#ffffff')] : []),
+  ];
+  if (zone === '工作空間') return !alt ? [] : [
+    [b(0.2, 0.6, 0.08, 0.4, 0, 0.28, '#2b6cb0'), b(0.2, 0.6, 0.08, 0.4, 0.28, 0.56, '#2f855a')], // 疊起來的塑膠菜籃
+    [b(0.3, 0.6, 0.08, 0.38, 0, 0.33, '#f7fafc'), b(0.33, 0.57, 0.11, 0.35, 0.33, 0.35, '#90cdf4')], // 白色水桶
+    [b(0.3, 0.6, 0.08, 0.38, 0, 0.5, '#4a5568'), b(0.28, 0.62, 0.06, 0.4, 0.5, 0.54, '#2d3748')], // 垃圾桶
+  ][v];
+  if (zone === '桌面空間' || zone === '工作桌面混合') {
+    const wood = v === 0;
+    return [
+      b(0.72, 0.74, 0.04, 0.06, 0.9, 1.08, '#4a5568'), b(0.62, 0.86, 0.03, 0.05, 1.05, 1.22, '#f7fafc'), // 小價目牌
+      ...(alt ? [b(0.1, 0.22, 0.02, 0.08, 1.25, 1.6, '#f7fafc')] : []), // 柱子掛勾上的塑膠袋
+      ...(alt ? stool(...e.pt(0.45, -0.29).map(x => x - 0.14), wood) : []), // 走道上的椅凳（使用者決議畫在走道上，只是畫面、不擋 agent）
+    ];
+  }
+  if (zone === '用餐區') return (e.row * 3 + e.col) % 4 ? [] // 共融區照片只有零星一盆蕨類：每四格一盆
+    : [b(0.4, 0.62, 0.06, 0.28, 0, 0.3, '#c05621'), b(0.34, 0.68, 0.02, 0.32, 0.3, 0.72, '#38a169')];
+  if (zone === '鐵門封閉' && e.side === 'front' && alt) return v === 0 // 鐵捲門貼齊店面邊，靠門的雜物只能放在門外
+    ? [b(0.12, 0.88, -0.13, -0.05, 0, 1.05, '#b08254'), ...[0.2, 0.55, 0.9].map(h => b(0.12, 0.88, -0.14, -0.13, h, h + 0.1, '#7c5a3a'))] // 靠著的木棧板
+    : [b(0.15, 0.55, -0.45, -0.1, 0, 0.34, '#b7844a'), b(0.2, 0.5, -0.42, -0.13, 0.34, 0.6, '#c29560')]; // 紙箱堆
+  return [];
+}
+
+// 一個分區要畫的所有方塊（本地公尺），依 zone/category/臨走道邊組合起來。
+function eraRegionPieces(region, front, W, D) {
+  const cat = region.category, edges = regionEdges(region, front);
+  let pieces;
+  switch (region.zone) {
+    case '鐵門封閉': pieces = [...modelPieces(STALL_MODELS.closed, W, D), ...closedSign(W, region.bbox)]; break;
+    case '移動攤販': pieces = tentPieces(cat, W, D); break;
+    case '桌面空間': case '工作桌面混合':
+      pieces = [...counterBase(W, D), ...(COUNTER_GOODS[cat] || none)(W, D), ...(RAIL_HANGING[cat] || none)(W, D)]; break;
+    case '用餐區': pieces = commonAreaPieces(region, front, W, D); break;
+    case '工作空間': { // 離走道最遠的後角落；右側臨走道就改放左角落
+      const u = edges.some(e => e.side === 'right') ? 0.1 : W - 0.8;
+      pieces = (WORKSPACE_PROPS[cat] || none)(u, D - 0.42); break;
+    }
+    case '工作設備區':
+      pieces = EQUIPMENT_UNITS[cat] ? placeUnitRow(EQUIPMENT_UNITS[cat], W, D) : [
+        bx(0.1 * W, 0.9 * W, 0.1 * D, 0.9 * D, 0, 0.1, '#5a6472', true), // 矮平台
+        ...(EQUIPMENT_FRACTION[cat] || EQUIPMENT_DEFAULT).map(p => bx(p.fu0 * W, p.fu1 * W, p.fd0 * D, p.fd1 * D, p.h0, p.h1, p.color))];
+      break;
+    default: pieces = [];
+  }
+  const room = Math.min(D, ...pieces.filter(p => p.d0 !== undefined).map(p => p.d0)); // 設備前緣到走道邊的空間，決定還堆不堆箱子
+  for (const e of edges) pieces.push(...edgeClutter(region.zone, e, room));
+  return pieces;
+}
+// 本地公尺 → 世界座標＋畫的順序：base 件先畫（依 h0 由下往上），其餘依中心點 row+col（畫家演算法）
+// ＋0.3×h0 排序——放在別的東西上面的（保麗龍箱、壓縮機罩、檯面上的商品）要比底下那件晚畫，
+// 0.3 小到不會把冰箱背面那片門板排到櫃體前面（同 drawIsoShop() 的排序，只多了高度這一項）。
+function eraRegionBoxes(region) {
+  const bbox = region.bbox, front = shopFront({ ...bbox });
+  const along = front === 'S' || front === 'N';
+  const W = along ? bbox.maxCol - bbox.minCol + 1 : bbox.maxRow - bbox.minRow + 1;
+  const D = along ? bbox.maxRow - bbox.minRow + 1 : bbox.maxCol - bbox.minCol + 1;
+  // 分區所在格子本身的地面高度（走道格比攤位格高 0.15m）：整區零件一起墊高，才不會陷進地板
+  const z = ISO_HEIGHT_M[World.cellType[region.cells[0].row][region.cells[0].col]] || 0;
+  const pt = ([u, d, h]) => { const w = shopLocalToWorld(bbox, front, u, d); return [w.row, w.col, h + z]; };
+  const toWorld = (p) => {
+    if (p.beam) return { beam: p.beam.map(pt), w: p.w, color: p.color, plain: p.plain };
+    if (p.poly) return { poly: p.poly.map(pt), color: p.color };
+    if (p.sprite) return { sprite: { ...p.sprite, at: pt(p.sprite.at) } };
+    const a = shopLocalToWorld(bbox, front, p.u0, p.d0), b = shopLocalToWorld(bbox, front, p.u1, p.d1);
+    return [Math.min(a.row, b.row), Math.min(a.col, b.col), Math.max(a.row, b.row), Math.max(a.col, b.col), p.h0 + z, p.h1 + z, p.color];
+  };
+  const depth = (w) => {
+    if (Array.isArray(w)) return (w[0] + w[1] + w[2] + w[3]) / 2 + 0.3 * w[4];
+    if (w.sprite) return w.sprite.at[0] + w.sprite.at[1] + 0.3 * w.sprite.at[2];
+    const pts = w.beam || w.poly;
+    return pts.reduce((s, q) => s + q[0] + q[1], 0) / pts.length + 0.3 * Math.min(...pts.map(q => q[2]));
+  };
+  const pieces = eraRegionPieces(region, front, W, D);
+  const base = pieces.filter(p => p.base).sort((x, y) => x.h0 - y.h0).map(toWorld);
+  const rest = pieces.filter(p => !p.base).map(toWorld).map(w => [depth(w), w]).sort((x, y) => x[0] - y[0]).map(x => x[1]);
+  return [...base, ...rest];
+}
+function isoBeam({ beam: [a, b], w, color, plain }) { // 粗線當木料；plain＝細線不描邊（磁磚縫）
+  const ctx = drawingContext, p = isoProject(a[0], a[1], isoHeightPx(a[2])), q = isoProject(b[0], b[1], isoHeightPx(b[2]));
+  const px = Math.max(plain ? 1 : 1.5, isoHeightPx(w));
+  ctx.save();
+  ctx.lineCap = 'butt';
+  for (const [lw, c] of plain ? [[px, color]] : [[px + 2, '#0b0d12'], [px, color]]) {
+    ctx.strokeStyle = c; ctx.lineWidth = lw;
+    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+  }
+  ctx.restore();
+}
+// 道具貼圖（stall_models/props/*.js，tools/bake_mesh_sprite.js 烘焙）：sheet 四格 S/E/N/W 朝向，rot 選格（預設 0）。
+// 圖載入完成才畫得出來；propVer++ 讓 drawIsoTerrainCached() 的快取 key 變動、重畫一次。
+const propImg = {};
+let propVer = 0;
+function isoSprite({ sprite: { name, color, at: [r, c, h], rot = 0 } }) {
+  const S = PROP_SPRITES[name], k = name + color;
+  const img = propImg[k] || (propImg[k] = Object.assign(new Image(), { onload: () => propVer++, src: S.sheets[color] }));
+  if (!img.complete || !img.naturalWidth) return;
+  const s = isoCamera.u / S.ppm, p = isoProject(r, c, isoHeightPx(h));
+  drawingContext.drawImage(img, rot * S.cw, 0, S.cw, S.ch, p.x - S.ax * s, p.y - S.ay * s, S.cw * s, S.ch * s);
+}
+function isoPoly({ poly: pts, color }) {
+  const ctx = drawingContext;
+  ctx.fillStyle = color; ctx.strokeStyle = '#0b0d12'; ctx.lineWidth = 1;
+  isoDrawPoly(pts.map(q => isoProject(q[0], q[1], isoHeightPx(q[2]))));
+  ctx.stroke();
+}
+function drawEraRegion(region) {
+  if (!region.boxes) region.boxes = eraRegionBoxes(region);
+  for (const b of region.boxes) {
+    if (Array.isArray(b)) isoBox(b[0], b[1], b[2], b[3], b[4], b[5], b[6]);
+    else if (b.beam) isoBeam(b);
+    else if (b.sprite) isoSprite(b);
+    else isoPoly(b);
   }
 }
 
@@ -1017,12 +1718,31 @@ function drawIsoTerrain() {
   const bb = isoVisibleRowColRange();
   if (bb.maxRow < bb.minRow || bb.maxCol < bb.minCol) return;
   const maxD = (bb.maxRow - bb.minRow) + (bb.maxCol - bb.minCol);
+  // 攤位模型（或年代分區模型）排在自己 footprint 最大對角線+1（含店面外的桌子/遮陽棚）之後畫，
+  // 才不會被較晚畫的走道地板蓋掉。兩套模型互斥（params.showEraShopModel 開關），只建其中一份。
+  const shopsAtD = {}, regionsAtD = {};
+  if (params.showEraShopModel) {
+    for (const region of eraRegions(params.eraYear)) {
+      const rb = region.bbox;
+      if (rb.maxRow < bb.minRow || rb.minRow > bb.maxRow || rb.maxCol < bb.minCol || rb.minCol > bb.maxCol) continue;
+      const d = Math.min(maxD, rb.maxRow + rb.maxCol + 1 - bb.minRow - bb.minCol);
+      (regionsAtD[d] = regionsAtD[d] || []).push(region);
+    }
+  } else {
+    for (const sh of World.shops) {
+      if (sh.maxRow < bb.minRow || sh.minRow > bb.maxRow || sh.maxCol < bb.minCol || sh.minCol > bb.maxCol) continue;
+      const d = Math.min(maxD, sh.maxRow + sh.maxCol + 1 - bb.minRow - bb.minCol);
+      (shopsAtD[d] = shopsAtD[d] || []).push(sh);
+    }
+  }
   for (let d = 0; d <= maxD; d++) {
     for (let r = bb.minRow; r <= bb.maxRow; r++) {
       const c = bb.minCol + (d - (r - bb.minRow));
       if (c < bb.minCol || c > bb.maxCol) continue;
       drawIsoCell(r, c);
     }
+    if (params.showEraShopModel) { if (regionsAtD[d]) regionsAtD[d].forEach(drawEraRegion); }
+    else if (shopsAtD[d]) shopsAtD[d].forEach(drawIsoShop);
   }
 }
 
@@ -1067,6 +1787,67 @@ function drawRunSnapshots() {
     const y0 = PANEL3_Y0 + row * (THUMB_H + THUMB_GAP_Y);
     image(img, x0, y0);
   });
+}
+
+// ============================================================
+// 年代對照疊色（2026-09-29，2026-09-29 使用者要求改回疊在畫面一，不另開獨立面板）。
+// ERA_DATA 來源見 era_data.js／adapter_era_data.py。純視覺，不影響 agent 規則。
+// ============================================================
+
+// 依字串內容算固定色碼（同一個值永遠同一個顏色，不管出現順序），避免每次重新整理顏色亂跳。
+const ERA_PALETTE = ['#e53e3e', '#38a169', '#3182ce', '#d69e2e', '#805ad5', '#dd6b20', '#319795', '#d53f8c', '#718096', '#68d391', '#63b3ed', '#f6ad55'];
+function colorForEraValue(value) {
+  let h = 0;
+  for (let i = 0; i < value.length; i++) h = (h * 31 + value.charCodeAt(i)) >>> 0;
+  return ERA_PALETTE[h % ERA_PALETTE.length];
+}
+const ERA_NO_DATA_COLOR = '#1a1a1a';
+// kind 只有四種，固定色（雜湊上色會讓 aisle/stall 撞色）。
+const ERA_KIND_COLOR = { aisle: '#3182ce', facility: '#d69e2e', stall: '#e53e3e', entry: '#38a169' };
+
+// 依目前下拉選單選的屬性＋年代，回傳某一格的色碼；null＝這格沒有這個屬性的資料（不畫色塊）。
+// existence 選項（用途）：讀 kind_<年代>（aisle/facility/stall/entry），沒有＝暗灰。
+function eraCellColor(r, c, era) {
+  const data = ERA_DATA.cells[r + ',' + c];
+  if (!data) return null;
+  if (params.eraAttribute === 'zone') {
+    const v = data['zone_' + era];
+    return v ? colorForEraValue(v) : null;
+  }
+  if (params.eraAttribute === 'category') {
+    const v = data['category_' + era];
+    return v ? colorForEraValue(v) : null;
+  }
+  if (params.eraAttribute === 'structure') {
+    const v = data['structure_' + era]; // 2020s 的 NULL＝移動攤販格（當時是走道），不上色
+    return v ? colorForEraValue(v) : null;
+  }
+  if (params.eraAttribute === 'existence') {
+    const k = data['kind_' + era]; // 該年代這格是哪種圖層；沒有＝當時不存在／無資料
+    return k ? ERA_KIND_COLOR[k] : '#2d3748';
+  }
+  return null;
+}
+
+// 圖例：掃一次 ERA_DATA 收集目前選中屬性在兩個年代出現過的所有值，畫成色塊＋文字列。只在下拉選單／
+// 開關切換時重算＋更新 HTML（#eraLegend），不是每幀——見 bindUI() 的 change 監聽。
+function updateEraLegend() {
+  const el = document.getElementById('eraLegend');
+  if (params.eraAttribute === 'existence') {
+    el.innerHTML = ['aisle', 'facility', 'stall', 'entry'].map(k =>
+      `<span style="display:inline-block;width:10px;height:10px;background:${ERA_KIND_COLOR[k]};margin-right:4px;vertical-align:middle;"></span>${k}`
+    ).join('　') + '　<span style="display:inline-block;width:10px;height:10px;background:#2d3748;margin-right:4px;vertical-align:middle;"></span>當時不存在／無資料';
+    return;
+  }
+  const field = { zone: 'zone_', category: 'category_', structure: 'structure_' }[params.eraAttribute];
+  const values = new Set();
+  for (const data of Object.values(ERA_DATA.cells)) {
+    if (data[field + '2020s']) values.add(data[field + '2020s']);
+    if (data[field + '2026']) values.add(data[field + '2026']);
+  }
+  el.innerHTML = [...values].sort().map(v =>
+    `<span style="display:inline-block;width:10px;height:10px;background:${colorForEraValue(v)};margin-right:4px;vertical-align:middle;"></span>${v}`
+  ).join('　') + '　　<span style="opacity:.6">（沒疊色的格子＝該格無此屬性資料，維持原本畫面一配色）</span>';
 }
 
 // 使用者需求(4)：兩張圖之間的時間軸進度條，2026/08 起、tick=0.5年，MAX_TICKS(20)跑完＝2036/08。
@@ -1144,7 +1925,14 @@ function renderPanel2Cache() {
 
 // 依 cellType/店鋪狀態/軌跡熱度決定一格的填色（字串色碼或斜線 CanvasPattern），跟畫面二共用同一套判斷邏輯
 // （見 renderPanel2Cache 的 cellStyle），只是資料來源換成 camera 這份互動鏡頭。
+// 年代對照疊色（2026-09-29，使用者要求疊在畫面一，不另開面板）：開關開著時優先權最高——這格有資料
+// 就直接蓋掉底下原本的畫法（含 stallslot 狀態色），沒資料的格子（不在 ERA_DATA 涵蓋範圍內）維持原樣，
+// 這樣使用者可以直接用畫面一原生的鏡頭拖曳/縮放去看年代對照，不用另外維護一份簡化版的地圖。
 function gridCellStyle(r, c) {
+  if (params.showEraOverlay) {
+    const eraColor = eraCellColor(r, c, params.eraYear);
+    if (eraColor) return eraColor;
+  }
   const t = World.cellType[r][c];
   if (t === 'sidewalk') return sidewalkHatchPattern;
   if (t === 'crosswalk') return crosswalkHatchPattern;
@@ -1228,9 +2016,8 @@ function bindUI() {
   const trafficMult = document.getElementById('trafficMult');
   const trafficMultLabel = document.getElementById('trafficMultLabel');
   const trailView = document.getElementById('trailView');
-  const showTrail = document.getElementById('showTrail');
-  const showCatchment = document.getElementById('showCatchment');
-  const eventRadios = document.querySelectorAll('input[name="eventChoice"]');
+  const eraYear = document.getElementById('eraYear');
+  const eraAttribute = document.getElementById('eraAttribute');
 
   btnPlay.addEventListener('click', () => {
     if (tick >= MAX_TICKS) return; // 已跑完10年，開始鍵不再有作用
@@ -1246,9 +2033,11 @@ function bindUI() {
     trafficMultLabel.textContent = params.trafficMult.toFixed(1) + '×' + (params.trafficMult === 1 ? '（預設）' : '');
   });
   trailView.addEventListener('change', () => { params.trailView = trailView.value; panel2Dirty = true; });
-  showTrail.addEventListener('change', () => { params.showTrail = showTrail.checked; }); // 20260914 需求#2：關掉畫面一的動線熱度
-  showCatchment.addEventListener('change', () => { params.showCatchment = showCatchment.checked; });
-  eventRadios.forEach(r => r.addEventListener('change', () => { if (r.checked) params.activeEventId = r.value; }));
+  // 年代對照疊色：畫面一本來就每幀直接畫（不像畫面二有離線快取），gridCellStyle() 每幀都會重新讀
+  // params，這裡只要更新 params/圖例，不用額外的 dirty 旗標。
+  eraYear.addEventListener('change', () => { params.eraYear = eraYear.value; });
+  eraAttribute.addEventListener('change', () => { params.eraAttribute = eraAttribute.value; updateEraLegend(); });
+  updateEraLegend(); // 開場先跑一次（年代對照預設開啟）
 }
 
 function updateStatsDisplay() {

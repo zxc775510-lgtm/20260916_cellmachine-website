@@ -1,0 +1,11 @@
+# semi.mtl — 由 export_stall_models.js 自動產生
+newmtl mat_8a8f98
+Kd 0.541 0.561 0.596
+newmtl mat_a3a58a
+Kd 0.639 0.647 0.541
+newmtl mat_cbd5e0
+Kd 0.796 0.835 0.878
+newmtl mat_ACCENT
+Kd 1.000 0.550 0.150
+newmtl mat_MARKER
+Kd 0.900 0.050 0.050

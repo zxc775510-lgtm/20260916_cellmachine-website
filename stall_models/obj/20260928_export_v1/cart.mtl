@@ -1,0 +1,7 @@
+# cart.mtl — 由 export_stall_models.js 自動產生
+newmtl mat_ACCENT
+Kd 1.000 0.550 0.150
+newmtl mat_6b4a2a
+Kd 0.420 0.290 0.165
+newmtl mat_MARKER
+Kd 0.900 0.050 0.050

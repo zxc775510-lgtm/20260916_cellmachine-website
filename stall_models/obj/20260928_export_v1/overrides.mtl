@@ -1,0 +1,5 @@
+# overrides.mtl — 由 export_stall_models.js 自動產生
+newmtl mat_GUIDE
+Kd 0.200 0.200 0.240
+newmtl mat_MARKER
+Kd 0.900 0.050 0.050

@@ -1,4 +1,4 @@
-// Cell（市場網格空間本身）— 規則來源：20260827_agent_setting.md「Space Class」
+// Cell（市場網格空間本身）— 規則來源：agent_setting.md「Space Class」
 // Space Class 存成陣列：World.cellSpace，跟 World.cellType 一樣是 ROWS×COLS 的 2D 陣列，每一格自己的 Attribute。
 // 目前唯一實作的 Attribute：corridorFrontage（這一格臨走道／入口的邊數比例）。其餘 Cell 屬性尚未實作，見文件 Known Implementation Gaps。
 // 判斷邏輯（怎麼用這個數值）不寫在這裡——放在 Vendor (New) 的 Site Fertility Weighting（website/agents/vendorNew.js），Cell 只提供量化值。

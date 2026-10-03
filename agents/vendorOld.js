@@ -1,4 +1,4 @@
-// Vendor (Old)（正在營業的老攤商）— 規則來源：20260823_agent_setting.md「Vendor (Old)」
+// Vendor (Old)（正在營業的老攤商）— 規則來源：agent_setting.md「Vendor (Old)」
 // ⚠️ 使用者指示覆寫（2026-08-24）：老攤商永久不會倒，拿掉原本的關門機率判定（人氣/冷清度/關門機率整段不再適用）。
 // 固定規則：永久固定，無任何移動、搬遷、或生存判定——這就是這個 agent 現在的完整規則，之後想恢復可從 git 歷史找回。
 const VendorOld = {

@@ -1,0 +1,13 @@
+# closed.mtl — 由 export_stall_models.js 自動產生
+newmtl mat_8b93a1
+Kd 0.545 0.576 0.631
+newmtl mat_5a6270
+Kd 0.353 0.384 0.439
+newmtl mat_4a5060
+Kd 0.290 0.314 0.376
+newmtl mat_c2c8d1
+Kd 0.761 0.784 0.820
+newmtl mat_1a202c
+Kd 0.102 0.125 0.173
+newmtl mat_MARKER
+Kd 0.900 0.050 0.050

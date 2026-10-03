@@ -1,9 +1,9 @@
-// Tourist（逛新攤位的觀光客）— 規則來源：20260823_agent_setting.md「Tourist」＋文末「Isovist／已知路線 演算法」pseudocode。
+// Tourist（逛新攤位的觀光客）— 規則來源：agent_setting.md「Tourist」＋isovist_algorithm.md pseudocode。
 // 對照範例：20260824/isovist_sim.html 的 isVisible()/findVisibleTarget()/findVisiblePeer()/greedyStepToward()，函式名稱刻意保持一致方便對照。
 const Tourist = {
   interestState: 'new',   // Attribute：興趣目標＝營業中的 Vendor (New)，排除這趟已到訪過的
-  giveupTicks: 8,         // 演算法第7點 GIVEUP_TICKS；文件沒留原始數字，沿用 isovist_sim.html 的自訂值
-  visionRadius: 50,       // 監測範圍：100公尺 ÷ 每格2公尺 ≈ 50格半徑（本圖對角線~28.6格，目前不太會擋到誰，公式保留供之後放大場景重算）
+  giveupTicks: CONFIG.params.GIVEUP_TICKS, // 數值來源：99_config/agents/human.json；        // 演算法第7點 GIVEUP_TICKS；文件沒留原始數字，沿用 isovist_sim.html 的自訂值
+  visionRadius: CONFIG.params.VISION_RADIUS_CELLS, // 數值來源：99_config/agents/tourist.json；      // 監測範圍：100公尺 ÷ 每格2公尺 ≈ 50格半徑（本圖對角線~28.6格，目前不太會擋到誰，公式保留供之後放大場景重算）
   pedestrians: [],
 
   reset() {
@@ -38,7 +38,7 @@ const Tourist = {
 
   // 演算法第1點 isVisible：阻擋（牆/設施/建物/任何攤位格，終點本身除外）＋距離上限，兩者疊加才算看得到。
   // 同一套判定也用在「看不看得到其他 Tourist」（findVisiblePeer 跟隨 fallback），不是另一套規則。
-  // building 加入阻擋清單：20260914 使用者需求，見 20260827_agent_setting.md「監測範圍」。
+  // building 加入阻擋清單：20260914 使用者需求，見 agent_setting.md「監測範圍」。
   isVisible(r0, c0, r1, c1) {
     if (Math.hypot(r1 - r0, c1 - c0) > this.visionRadius) return false;
     const line = this.bresenhamCells(r0, c0, r1, c1);
@@ -50,9 +50,10 @@ const Tourist = {
     return true;
   },
 
-  // Attribute 熱度偏好：多目標時比「距離−熱度加成」，非純距離。門檻同 20260823_simulator_setting.md 軌跡熱力三級門檻 1/10/25。
+  // Attribute 熱度偏好：多目標時比「距離−熱度加成」，非純距離。門檻同 simulator_setting.md 軌跡熱力三級門檻 1/10/25。
   heatBonus(h) {
-    return h >= 25 ? 3 : h >= 10 ? 2 : h >= 1 ? 1 : 0;
+    const t = CONFIG.params.HEAT_BONUS_TIERS.E.find(([min]) => h >= min); // E人分支，I人見 tourist.json
+    return t ? t[1] : 0;
   },
 
   // 演算法第2點 findVisibleTarget：看得到、還沒去過的同類型目標裡，score(距離−熱度加成)最小者，同分隨機。
@@ -190,7 +191,7 @@ const Tourist = {
         p.row = next[0]; p.col = next[1];
       }
 
-      trailHeat[p.row][p.col] += TRAIL_STEP_ADD; // 不衰減、不封頂，見 20260823_simulator_setting.md
+      trailHeat[p.row][p.col] += TRAIL_STEP_ADD; // 不衰減、不封頂，見 simulator_setting.md
 
       const landed = World.stallAtRC[p.row + ',' + p.col];
       if (landed && landed.shop.state === this.interestState && !p.visited.has(landed.shop.code)) {

@@ -1,13 +1,9 @@
-// Resident（逛老攤販的當地居民）— 規則來源：20260823_agent_setting.md「Resident」＋文末演算法第6-7點（residentStep）。
+// Resident（逛老攤販的當地居民）— 規則來源：agent_setting.md「Resident」＋isovist_algorithm.md 第6-7點（residentStep）。
 // 跟 Tourist 的差異：不用 isovist，全市場已知路線直接抄近路走（Wayfinding 文獻：熟悉環境者用既有認知地圖抄捷徑）。
-//
-// ⚠️ 已知落差：Attribute 段落寫「熱度偏好：同 Tourist，讀 residentTrailHeat」，但文件自己給的演算法第6-7點
-// （bfsFieldFromTargets／residentStep）跟文件指定的可執行範例 isovist_sim.html，兩邊都沒有把熱度加權接進多來源
-// BFS 裡——純粹挑「未訪攤位裡最近的」。這裡照抄演算法本身的具體寫法（也跟範例一致），沒有自作主張加東西；
-// 熱度加權若真的要接，多來源 BFS 沒辦法直接表達「不同起點優先權不同」，得換成 Dijkstra，等文件把這個落差說清楚再補。
+// Resident 沒有 Personality 屬性，純看距離，不套用 Target Scoring Rule（heatBonus）——見主文件 Resident「Rule」段落。
 const Resident = {
   interestState: 'old',   // Attribute：興趣目標＝營業中的 Vendor (Old)，排除這趟已到訪過的
-  giveupTicks: 8,         // 同 Tourist，見演算法第7點
+  giveupTicks: CONFIG.params.GIVEUP_TICKS, // 數值來源：99_config/agents/human.json；        // 同 Tourist，見演算法第7點
   pedestrians: [],
 
   reset() {
@@ -111,7 +107,7 @@ const Resident = {
       if (!next) next = this.randomStep(p); // 沒有未訪目標／目標暫時不可達的備援
       if (next) { p.row = next[0]; p.col = next[1]; }
 
-      trailHeat[p.row][p.col] += TRAIL_STEP_ADD; // 不衰減、不封頂，見 20260823_simulator_setting.md
+      trailHeat[p.row][p.col] += TRAIL_STEP_ADD; // 不衰減、不封頂，見 simulator_setting.md
 
       const landed = World.stallAtRC[p.row + ',' + p.col];
       if (landed && landed.shop.state === this.interestState && !p.visited.has(landed.shop.code)) {
