@@ -1,6 +1,7 @@
 // 由 99_config/build_config.js 產生，不要手改；改 99_config/**/*.json 後重跑腳本。
 const CONFIG = {
  "params": {
+  "CHAIR_BLOCK_COUNT": 2,
   "WALK_SPEED_MPS": 1.4,
   "CELL_SIZE_M": 2,
   "GIVEUP_TICKS": 8,
@@ -35,6 +36,8 @@ const CONFIG = {
     ]
    ]
   },
+  "CHAIR_START_BEAT": 16,
+  "CHAIR_END_BEAT": 80,
   "REOPEN_PROB": 0.09,
   "HEAT_WINDOW": 2,
   "COLD_STREAK_THRESHOLD": 3,
@@ -80,7 +83,14 @@ const CONFIG = {
    },
    "rules": {
     "passableFor": {
-     "desc": "牆/設施不可通行；攤位格只有等於興趣目標類型才可通行，否則視同牆；走道、入口可通行",
+     "desc": "牆/設施不可通行；攤位格只有等於興趣目標類型才可通行，否則視同牆；走道椅子數（occupiedBy 目前的長度，一家店一張）≥ CHAIR_BLOCK_COUNT 視同牆，少於閾值可通行；其餘走道、入口可通行；繞不過去沿用既有後備行為（exitStep／隨機走／giveupRule）",
+     "params": {
+      "CHAIR_BLOCK_COUNT": {
+       "value": 2,
+       "unit": "張",
+       "note": "走道格椅子數達此值才擋路，Tourist、Resident 共用"
+      }
+     },
      "impl": "agents/tourist.js#passableFor | agents/resident.js#passableFor",
      "status": "implemented"
     },
@@ -185,7 +195,7 @@ const CONFIG = {
      "status": "implemented"
     },
     "isVisible": {
-     "desc": "可見性判定：牆、設施、建物、任何攤位格（終點除外）擋視線；半徑上限 100 m ≈ 50 格；同一套也用在看其他 Tourist",
+     "desc": "可見性判定：牆、設施、建物、任何攤位格（終點除外）擋視線，走道格上的椅子不擋視線（只影響通行）；半徑上限 100 m ≈ 50 格；同一套也用在看其他 Tourist",
      "params": {
       "VISION_RADIUS_CELLS": {
        "value": 50,
@@ -253,9 +263,31 @@ const CONFIG = {
   "Vendor": {
    "id": "Vendor",
    "label": "攤販（New／Old／Idle 的共同基礎）",
-   "note": "三者都不連續走路，狀態變化只有離散判定（固定不動／搬遷）。無共用屬性與共用 method；Vendor (Idle) 依 generation 直接呼叫 Vendor (New) 的 relocationJudgement()。生存判定以店鋪（同 code 分組）為單位，不是個別 grid 格。",
+   "note": "三者都不連續走路，狀態變化只有離散判定（固定不動／搬遷）。無共用屬性；共用 method 只有 chairRule（營業中的店）；Vendor (Idle) 依 generation 直接呼叫 Vendor (New) 的 relocationJudgement()。生存判定以店鋪（同 code 分組）為單位，不是個別 grid 格。",
    "attributes": {},
-   "rules": {}
+   "rules": {
+    "chairRule": {
+     "desc": "每個 beat 對每家有椅子可以往外擺的店（code 出現在 ERA_DATA.cells['r,c'].occupiedBy 靜態清單）各自判斷：店有營業且 dayBeat 在 [CHAIR_START_BEAT, CHAIR_END_BEAT) → 把自己的 code 加進清單內走道格的 Cell.occupiedBy（每格每店最多一張）；否則移除。不記憶、不緩衝，每個 beat 只看店當下的營業狀態；endOfDay 不需另外處理。occupiedBy 非空 → mobility＝Chair_Mobility，空了回完全開放。適用營業中的店（Vendor (New)／(Old)），Vendor (Idle) 不適用；沒有屬性讓規則分岔",
+     "params": {
+      "CHAIR_START_BEAT": {
+       "value": 16,
+       "unit": "beat",
+       "note": "一天 DAY_LENGTH_BEATS＝96 個 beat 內，擺椅起點，全域一組"
+      },
+      "CHAIR_END_BEAT": {
+       "value": 80,
+       "unit": "beat",
+       "note": "擺椅終點（不含），全域一組"
+      }
+     },
+     "writes": [
+      "Cell.occupiedBy",
+      "Cell.mobility"
+     ],
+     "source": "2026-10-02 課堂筆記（佔據一定跟空間有關，一條一條加反應規則）",
+     "status": "planned"
+    }
+   }
   },
   "VendorIdle": {
    "id": "VendorIdle",
@@ -499,44 +531,50 @@ const CONFIG = {
       "半開放",
       "封閉",
       "流動攤車",
-      "椅子"
+      "Chair_Mobility"
+     ],
+     "implemented": [
+      "完全開放",
+      "Chair_Mobility"
+     ],
+     "variants": [
+      {
+       "adjective": "一個開放的走道格（完全開放）",
+       "when": "mobility == 完全開放",
+       "effect": [
+        "passableFor 照走道處理，可通行"
+       ]
+      },
+      {
+       "adjective": "一個椅子還沒擠滿的走道格（Chair_Mobility）",
+       "when": "mobility == Chair_Mobility 且 椅子數 < CHAIR_BLOCK_COUNT",
+       "effect": [
+        "passableFor 可通行，一張椅子不擋路"
+       ]
+      },
+      {
+       "adjective": "一個被椅子擋住的走道格（Chair_Mobility）",
+       "when": "mobility == Chair_Mobility 且 椅子數 ≥ CHAIR_BLOCK_COUNT",
+       "effect": [
+        "passableFor 視同牆，行人繞開"
+       ]
+      }
      ],
      "source": "2026-10-02 課堂筆記（以可變動性為單一軸線往下細分）",
      "replaces": "STALL_STRUCTURE（移動攤販／半開放／鐵門封閉），程式碼尚未改名",
-     "status": "planned"
+     "impl": "agents/cell.js#buildCellSpace",
+     "status": "implemented"
+    },
+    "occupiedBy": {
+     "desc": "走道格 mobility＝Chair_Mobility（椅子）時，目前在這格擺椅的店鋪 code 清單（一家一張，兩家共用的用餐區可有兩個）；椅子數＝清單長度；平常為空",
+     "source": "使用者 2026-10-04 在 QGIS aisle.occupied_by 標定 33 格，經 adapter_era_data.py 輸出到 ERA_DATA",
+     "impl": "agents/cell.js#buildCellSpace",
+     "status": "implemented"
     },
     "orientation": {
      "desc": "方向性",
      "source": "2026-10-02 課堂筆記",
      "status": "planned"
-    },
-    "rent": {
-     "desc": "租金",
-     "source": "2026-10-02 課堂筆記",
-     "status": "planned"
-    },
-    "capacity": {
-     "desc": "容納人數；用來檢驗是否過度擁擠（原 occupancy：容納 agent 類型與數量）",
-     "source": "2026-10-02 課堂筆記",
-     "status": "planned"
-    },
-    "lightOn": {
-     "desc": "開燈狀態",
-     "source": "2026-10-02 課堂筆記",
-     "status": "planned"
-    },
-    "physical": {
-     "desc": "亮度／老舊度／通風／寬高比／材質：數值範圍與分類尚未定義，也沒有任何 agent 規則讀取",
-     "variants": [
-      {
-       "adjective": "一個〔待補〕的空間",
-       "when": "待補",
-       "effect": [
-        "待補"
-       ]
-      }
-     ],
-     "status": "placeholder"
     }
    },
    "rules": {
