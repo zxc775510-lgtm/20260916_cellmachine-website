@@ -144,7 +144,7 @@
     <select id="eraAttribute">
       <option value="zone">Zone</option>
       <option value="category">分類 Category</option>
-      <option value="structure">攤位結構 Structure</option>
+      <option value="structure">結構變動</option>
       <option value="existence">用途 Kind（走道/設施/攤位/入口）</option>
     </select>
     <div class="note" id="eraLegend"></div>
@@ -272,7 +272,7 @@ const ISO_PERSON_HEIGHT_M = 1.6; // agent 標記的擠出高度，一般成人�
 // 20260914 使用者需求#5：isometric 視角建築物/牆面用半透明呈現，減少對市場內部/agent的遮擋；
 // 攤販（stallslot）2026-09-24 起改畫 8-bit 不透明模型（drawIsoShop），不再半透明。
 const ISO_TRANSLUCENT_TYPES = new Set(['building', 'wall']);
-// 攤位結構（QGIS STALL 圖層 structure 欄位，依 display_code）：cart＝移動攤販（餐車）、closed＝鐵門封閉（盒子＋鐵捲門），
+// 攤位結構變動（QGIS STALL 圖層 Structure_Mobility_<年代> 欄位，依 display_code）：cart＝移動攤販（餐車）、closed＝鐵門封閉（盒子＋鐵捲門），
 // 沒列的＝半開放（臨街有桌子）。結構是攤位（code）這個位置的物理屬性，不隨店鋪搬遷/開關店改變。
 const STALL_STRUCTURE = { U: 'cart', V: 'cart', W: 'cart', Y: 'closed', Z: 'closed', 'Q-1': 'closed', 'Q-2': 'closed', 'Q-3': 'closed', '外甲1': 'closed', '外甲2': 'closed', '外甲3': 'closed', '外甲4': 'closed' };
 const ISO_TRANSLUCENT_ALPHA = 0.55;
@@ -753,7 +753,7 @@ function drawCellTooltip() {
     if (id) lines.push(`ID：${id}`);
     if (d['zone_' + y]) lines.push(`Zone（${y}）：${d['zone_' + y]}`);
     if (d['category_' + y]) lines.push(`分類（${y}）：${d['category_' + y]}`);
-    if (d['structure_' + y]) lines.push(`結構（${y}）：${d['structure_' + y]}`);
+    if (d['structure_' + y]) lines.push(`結構變動（${y}）：${d['structure_' + y]}`);
   }
   textSize(12); textAlign(LEFT, TOP);
   const w = Math.max(...lines.map(l => textWidth(l))) + 16, h = lines.length * 16 + 10;
