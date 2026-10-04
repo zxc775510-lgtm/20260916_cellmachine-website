@@ -782,7 +782,6 @@ function draw() {
     drawClosedShops();
     drawChairs();
     drawStallGroupOutlines(OFFSET_Y);
-    Tourist.drawVisionHighlight2D(); // 20260914 需求#2：2D 也用同一份可見格資料做高亮呈現
     Tourist.draw(window);
     Resident.draw(window);
     drawCatchmentCircle();
@@ -972,7 +971,6 @@ function drawIsoScene() {
   withIsoClip(() => {
     fill('#000000'); rect(OFFSET_X, ISO_Y0, VIEW_W, ISO_H);
     drawIsoTerrainCached();
-    Tourist.drawVisionHighlightIso(); // 視域高亮疊在地形之上、行人標記之下（20260914 需求#1：高亮呈現）
     Tourist.drawIso(window);
     Resident.drawIso(window);
     drawIsoMarketRoof(); // 市場雙斜屋頂：最後畫，半透明蓋在最上面（20260914 需求#4）
@@ -1658,11 +1656,11 @@ function isoBeam({ beam: [a, b], w, color, plain }) { // 粗線當木料；plain
 // 圖載入完成才畫得出來；propVer++ 讓 drawIsoTerrainCached() 的快取 key 變動、重畫一次。
 const propImg = {};
 let propVer = 0;
-function isoSprite({ sprite: { name, color, at: [r, c, h], rot = 0 } }) {
+function isoSprite({ sprite: { name, color, at: [r, c, h], rot = 0, scale = 1 } }) {
   const S = PROP_SPRITES[name], k = name + color;
   const img = propImg[k] || (propImg[k] = Object.assign(new Image(), { onload: () => propVer++, src: S.sheets[color] }));
   if (!img.complete || !img.naturalWidth) return;
-  const s = isoCamera.u / S.ppm, p = isoProject(r, c, isoHeightPx(h));
+  const s = isoCamera.u / S.ppm * scale, p = isoProject(r, c, isoHeightPx(h));
   drawingContext.drawImage(img, rot * S.cw, 0, S.cw, S.ch, p.x - S.ax * s, p.y - S.ay * s, S.cw * s, S.ch * s);
 }
 function isoPoly({ poly: pts, color }) {
@@ -1767,7 +1765,7 @@ function drawIsoTerrain() {
   // 椅子最後畫（在所有攤位量體之上），才不會被攤位檯面／雨棚的畫家演算法順序蓋掉；椅子小、都在走道上，不會擋到別的東西。
   chairAt.forEach((n, key) => {
     const [r, c] = key.split(',').map(Number);
-    for (let i = 0; i < n; i++) isoSprite({ sprite: { name: 'chair', color: 'red', at: [r + 0.55, c + (n === 1 ? 0.5 : 0.28 + 0.44 * i), ISO_HEIGHT_M.aisle || 0] } });
+    for (let i = 0; i < n; i++) isoSprite({ sprite: { name: 'chair', color: 'red', scale: 1.8, at: [r + 0.55, c + (n === 1 ? 0.5 : 0.28 + 0.44 * i), ISO_HEIGHT_M.aisle || 0] } }); // scale 1.8：預設縮放下椅子才看得到（比真實尺寸略大）
   });
 }
 
@@ -1984,12 +1982,12 @@ function drawClosedShops() {
 // 椅子（Chair Rule）：擺椅時段內，有營業店鋪標到的走道格畫紅色小方塊（跟 ISO 的紅色椅子同色），一家一張；兩家共用的格子畫兩張。
 function drawChairs() {
   if (!Cell.chairsOut()) return;
-  const cs = camera.cellPx, w = cs * 0.3;
+  const cs = camera.cellPx, w = Math.max(cs * 0.3, 3); // 縮得很小時也要看得到，至少 3px
   noStroke(); fill('#e53e3e');
   for (const a of World.chairCells) {
     const n = Cell.chairCount(a.row, a.col);
     const x = worldToScreenX(a.col), y = worldToScreenY(a.row, OFFSET_Y);
-    for (let i = 0; i < n; i++) rect(x + cs * (0.12 + 0.42 * i), y + cs * 0.35, w, w, 1);
+    for (let i = 0; i < n; i++) rect(x + Math.max(cs * (0.12 + 0.42 * i), i * (w + 1)), y + (cs - w) / 2, w, w, 1);
   }
 }
 
