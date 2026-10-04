@@ -230,8 +230,8 @@ const OLD_FIXED_CODES = ['L', 'K', 'P', 'A-2']; // X 已於 2026-09-24 QGIS 改�
 const SEC_PER_HOUR = 3600;
 const SEC_PER_DAY = 24 * SEC_PER_HOUR;
 const SEC_PER_TICK = 182.5 * SEC_PER_DAY; // tick＝半年，管攤位生存規則
-const SIM_MONTHS = 1;            // 時間軸總長（月）；跑到 SIM_END_SEC 自動停止，不再前進（改 SIM_MONTHS 即可調長度）
-const MICRO_MAX_RATE = 50;       // 播放倍率（模擬秒/真實秒）≤此值＝微觀（逐步走），超過＝宏觀（每小時取樣放大）
+const SIM_DAYS = 7;              // 時間軸總長（天）；跑到 SIM_END_SEC 自動停止，不再前進（改 SIM_DAYS 即可調長度）
+const MICRO_MAX_RATE = 100;       // 播放倍率（模擬秒/真實秒）≤此值＝微觀（逐步走），超過＝宏觀（每小時取樣放大）
 const MAX_RATE = 3e6;            // 拉桿最高倍率（約 1 個月/秒）
 const MACRO_SAMPLE_N = 8;        // 宏觀：每種狀況每類行人真的走 n 位取樣（可調，見 macroHour）
 const MACRO_BUDGET_MS = 12;      // 宏觀：每幀最多花多少 ms 推進，超過就放慢（避免卡死）
@@ -249,8 +249,8 @@ const MAX_PEDESTRIANS = 260;
 const TRAIL_STEP_ADD = 1;        // 不衰減、不歸零：拿掉 TRAIL_DECAY，軌跡永久累加
 
 const SIM_START_YEAR = 2026, SIM_START_MONTH = 8; // 時間軸起點 2026/08/01
-const SIM_END_DATE = new Date(Date.UTC(SIM_START_YEAR, SIM_START_MONTH - 1 + SIM_MONTHS, 1)); // 終點＝起點+SIM_MONTHS 個月
-const SIM_END_SEC = (SIM_END_DATE - Date.UTC(SIM_START_YEAR, SIM_START_MONTH - 1, 1)) / 1000; // 日曆月份天數（8月＝31天）
+const SIM_END_SEC = SIM_DAYS * SEC_PER_DAY;
+const SIM_END_DATE = new Date(Date.UTC(SIM_START_YEAR, SIM_START_MONTH - 1, 1) + SIM_END_SEC * 1000); // 終點＝起點+SIM_DAYS 天
 
 // 店鋪狀態配色（黑底版面，見使用者附件參考圖）：new/old 用鮮色，unused 用暗色，blank 幾乎融入底色。
 const STALL_COLOR = {
@@ -916,7 +916,7 @@ function advanceClock(dt) {
   const day0 = Math.floor(simSec / SEC_PER_DAY);
   simSec = Math.min(simSec + dt, SIM_END_SEC);
   if (Math.floor(simSec / SEC_PER_DAY) > day0) endOfDay();
-  while (simSec >= (tick + 1) * SEC_PER_TICK) stepTick(); // 半年一次；SIM_MONTHS 不滿半年就一次都不會觸發
+  while (simSec >= (tick + 1) * SEC_PER_TICK) stepTick(); // 半年一次；SIM_DAYS 不滿半年就一次都不會觸發
   Cell.daySec = simSec % SEC_PER_DAY;
   if (runDone()) {
     playing = false; // 自動停止，不用使用者手動暫停
@@ -1944,6 +1944,7 @@ function updateEraLegend() {
   ).join('　') + '　　<span style="opacity:.6">（沒疊色的格子＝該格無此屬性資料，維持原本畫面一配色）</span>';
 }
 
+function simDateLabel(d) { const p = n => String(n).padStart(2, '0'); return `${d.getUTCFullYear()}/${p(d.getUTCMonth() + 1)}/${p(d.getUTCDate())}`; }
 // 模擬時鐘的日期字串 YYYY/MM/DD HH:MM（自 2026/08/01 00:00 起；用 UTC 避免夏令時間，閏日照日曆算）。
 function simClockLabel() {
   const d = new Date(Date.UTC(SIM_START_YEAR, SIM_START_MONTH - 1, 1) + simSec * 1000), p = n => String(n).padStart(2, '0');
@@ -1965,9 +1966,9 @@ function drawTimeline() {
   if (pct > 0) { fill('#ffffff'); rect(x0, barY, (x1 - x0) * pct, barH, barH / 2); } // 已完成部分
 
   fill('#718096'); textSize(9); textAlign(LEFT, TOP);
-  text('2026/08', x0, barY + barH + 4);
+  text(simDateLabel(new Date(Date.UTC(SIM_START_YEAR, SIM_START_MONTH - 1, 1))), x0, barY + barH + 4);
   textAlign(RIGHT, TOP);
-  text(`${SIM_END_DATE.getUTCFullYear()}/${String(SIM_END_DATE.getUTCMonth() + 1).padStart(2, '0')}/01`, x1, barY + barH + 4);
+  text(simDateLabel(SIM_END_DATE), x1, barY + barH + 4);
 }
 
 // 畫面二：只有格子（牆/設施/入口維持map結構色，方便定位）＋只顯示軌跡——不畫攤位營業狀態、不畫行人。
@@ -2150,12 +2151,12 @@ function bindUI() {
   const speedLabel = document.getElementById('speedLabel');
   const applySpeed = () => {
     params.rate = Math.min(MAX_RATE, Math.pow(10, Number(speed.value) / 100));
-    if (Math.abs(params.rate - MICRO_MAX_RATE) < 1) params.rate = MICRO_MAX_RATE; // 拉桿格點剛好落在上限附近時吸附到上限，讓 50× 選得到
+    if (Math.abs(params.rate - MICRO_MAX_RATE) < 1) params.rate = MICRO_MAX_RATE; // 拉桿格點剛好落在上限附近時吸附到上限，讓上限值選得到
     const r = params.rate, perMin = r * 60; // 真實 1 分鐘 = 模擬 perMin 秒
     const unit = perMin < 3600 ? [60, '分鐘'] : perMin < 86400 ? [3600, '小時'] : perMin < 86400 * 30 ? [86400, '天'] : [86400 * 30, '個月'];
     const total = Math.max(1, Math.round(SIM_END_SEC / perMin)); // 跑完整個模擬需要的真實分鐘數
     speedLabel.textContent = (r <= MICRO_MAX_RATE ? '微觀（逐步走）' : '宏觀（每小時取樣）')
-      + '　1 分鐘＝模擬 ' + (perMin / unit[0]).toFixed(1) + ' ' + unit[1] + '　跑完 ' + SIM_MONTHS + ' 個月約 ' + total.toLocaleString() + ' 分鐘';
+      + '　1 分鐘＝模擬 ' + (perMin / unit[0]).toFixed(1) + ' ' + unit[1] + '　跑完 ' + SIM_DAYS + ' 天約 ' + total.toLocaleString() + ' 分鐘';
   };
   speed.addEventListener('input', applySpeed);
   applySpeed();
@@ -2186,7 +2187,7 @@ function updateStatsDisplay() {
   const finished = runDone();
 
   const btnPlay = document.getElementById('btnPlay');
-  btnPlay.textContent = finished ? `■ 已跑完${SIM_MONTHS}個月` : (playing ? '⏸ 暫停' : '▶ 開始');
+  btnPlay.textContent = finished ? `■ 已跑完${SIM_DAYS}天` : (playing ? '⏸ 暫停' : '▶ 開始');
 
   document.getElementById('stats').innerHTML = `
     <div class="stat-line"><span>Tick（半年一次）／模擬進度</span><b>${tick} / ${(100 * simSec / SIM_END_SEC).toFixed(0)}%${finished ? ' ✅' : ''}</b></div>
