@@ -485,6 +485,7 @@ function setup() {
   sidewalkHatchPattern = makeHatchPattern('#a0aec0', '#2d3748');  // 人行道：灰色斜線
   crosswalkHatchPattern = makeHatchPattern('#ffffff', '#3a3a3a'); // 斑馬線：白色斜線
   visionHighlightPattern = makeHatchOverlayPattern('#ffffff');    // 20260914 需求#1：視域高亮改用白色斜線疊圖
+  closedHatchPattern = makeHatchOverlayPattern('#ffffff');        // 沒營業的店鋪（blank／關門）：2D 疊白色斜線
 
   bindUI();
   bindCameraControls(cnv);
@@ -495,7 +496,7 @@ function setup() {
 
 // 2026-09-14：人行道/斑馬線改用斜線紋理（不是純色填滿）——用一張小尺寸離線畫布畫一條對角線，
 // 交給 canvas 原生的 createPattern 無縫平鋪，不用每格自己算線段座標，畫起來也比逐格畫線快。
-let sidewalkHatchPattern = null, crosswalkHatchPattern = null, visionHighlightPattern = null;
+let sidewalkHatchPattern = null, crosswalkHatchPattern = null, visionHighlightPattern = null, closedHatchPattern = null;
 function makeHatchPattern(lineColor, bgColor, size = 8) {
   const pg = createGraphics(size, size);
   pg.background(bgColor);
@@ -778,6 +779,7 @@ function draw() {
   // 畫面一：原本的模擬器（攤位營業狀態＋行人）。20260914：拿掉狀態數量隨時間變化的折線圖（drawChart）。
   withGridClip(OFFSET_Y, () => {
     drawGrid();
+    drawClosedShops();
     drawChairs();
     drawStallGroupOutlines(OFFSET_Y);
     Tourist.drawVisionHighlight2D(); // 20260914 需求#2：2D 也用同一份可見格資料做高亮呈現
@@ -948,7 +950,8 @@ function drawStallGroupOutlines(originY, cam = camera) {
 let isoTerrainCache = null, isoTerrainKey = '';
 function drawIsoTerrainCached() {
   const key = [isoCamera.originX, isoCamera.originY, isoCamera.u, params.showEraShopModel, params.eraYear, propVer,
-    params.showEraShopModel ? '' : World.shops.map(s => s.state).join()].join('|');
+    params.showEraShopModel ? World.shops.map(s => Cell.isOpen(s) ? 1 : 0).join('') : World.shops.map(s => s.state).join(),
+    World.chairCells.map(a => Cell.chairCount(a.row, a.col)).join('')].join('|'); // 營業狀態、椅子變了也要重畫
   if (!isoTerrainCache) isoTerrainCache = createGraphics(width, ISO_H);
   if (key !== isoTerrainKey) {
     isoTerrainKey = key;
@@ -1187,6 +1190,14 @@ function buildEraZoneRegions(era) {
 // ERA_DATA／地圖都是靜態的，分區跟每個分區算好的方塊清單只算一次（依年代快取）。
 const eraRegionCache = {};
 function eraRegions(era) { return eraRegionCache[era] || (eraRegionCache[era] = buildEraZoneRegions(era)); }
+// ISO 要畫哪些分區：年代選 2026 時，沒營業（blank／關門）的店鋪回到 2020s 的樣子（未整修：半開放只剩檯面、
+// 移動攤販變回走道），營業中的店鋪維持 2026；沒有對應店鋪的分區（2020s 的孤兒封閉格）只在選 2020s 時畫。
+function isoEraRegions() {
+  if (params.eraYear !== '2026') return eraRegions(params.eraYear);
+  const shopOf = (rg) => rg.shop !== undefined ? rg.shop : (rg.shop = (World.stallAtRC[rg.cells[0].row + ',' + rg.cells[0].col] || {}).shop || null);
+  return [...eraRegions('2026').filter(rg => !shopOf(rg) || Cell.isOpen(shopOf(rg))),
+    ...eraRegions('2020s').filter(rg => shopOf(rg) && !Cell.isOpen(shopOf(rg)))];
+}
 
 // base:true＝墊在底下的大件（檯身/檯面、平台、棧板、桌腳），先畫、依 h0 由下往上，不參與深度排序。
 const bx = (u0, u1, d0, d1, h0, h1, color, base) => ({ u0, u1, d0, d1, h0, h1, color, base });
@@ -1564,11 +1575,10 @@ function edgeClutter(zone, e, room) {
     [b(0.3, 0.6, 0.08, 0.38, 0, 0.5, '#4a5568'), b(0.28, 0.62, 0.06, 0.4, 0.5, 0.54, '#2d3748')], // 垃圾桶
   ][v];
   if (zone === '桌面空間' || zone === '工作桌面混合') {
-    const wood = v === 0;
     return [
       b(0.72, 0.74, 0.04, 0.06, 0.9, 1.08, '#4a5568'), b(0.62, 0.86, 0.03, 0.05, 1.05, 1.22, '#f7fafc'), // 小價目牌
       ...(alt ? [b(0.1, 0.22, 0.02, 0.08, 1.25, 1.6, '#f7fafc')] : []), // 柱子掛勾上的塑膠袋
-      ...(alt ? stool(...e.pt(0.45, -0.29).map(x => x - 0.14), wood) : []), // 走道上的椅凳（使用者決議畫在走道上，只是畫面、不擋 agent）
+      // 走道上的椅子改由 Chair Rule 依時間與營業狀態畫（見 drawIsoTerrain 的紅色椅子），這裡不再放固定椅凳
     ];
   }
   if (zone === '用餐區') return (e.row * 3 + e.col) % 4 ? [] // 共融區照片只有零星一盆蕨類：每四格一盆
@@ -1730,7 +1740,7 @@ function drawIsoTerrain() {
   // 才不會被較晚畫的走道地板蓋掉。兩套模型互斥（params.showEraShopModel 開關），只建其中一份。
   const shopsAtD = {}, regionsAtD = {};
   if (params.showEraShopModel) {
-    for (const region of eraRegions(params.eraYear)) {
+    for (const region of isoEraRegions()) {
       const rb = region.bbox;
       if (rb.maxRow < bb.minRow || rb.minRow > bb.maxRow || rb.maxCol < bb.minCol || rb.minCol > bb.maxCol) continue;
       const d = Math.min(maxD, rb.maxRow + rb.maxCol + 1 - bb.minRow - bb.minCol);
@@ -1743,6 +1753,8 @@ function drawIsoTerrain() {
       (shopsAtD[d] = shopsAtD[d] || []).push(sh);
     }
   }
+  const chairAt = new Map(); // Chair Rule：這格現在的椅子數（紅色椅子貼圖，同 PROP_SPRITES.chair）
+  for (const a of World.chairCells) { const n = Cell.chairCount(a.row, a.col); if (n) chairAt.set(a.row + ',' + a.col, n); }
   for (let d = 0; d <= maxD; d++) {
     for (let r = bb.minRow; r <= bb.maxRow; r++) {
       const c = bb.minCol + (d - (r - bb.minRow));
@@ -1752,6 +1764,11 @@ function drawIsoTerrain() {
     if (params.showEraShopModel) { if (regionsAtD[d]) regionsAtD[d].forEach(drawEraRegion); }
     else if (shopsAtD[d]) shopsAtD[d].forEach(drawIsoShop);
   }
+  // 椅子最後畫（在所有攤位量體之上），才不會被攤位檯面／雨棚的畫家演算法順序蓋掉；椅子小、都在走道上，不會擋到別的東西。
+  chairAt.forEach((n, key) => {
+    const [r, c] = key.split(',').map(Number);
+    for (let i = 0; i < n; i++) isoSprite({ sprite: { name: 'chair', color: 'red', at: [r + 0.55, c + (n === 1 ? 0.5 : 0.28 + 0.44 * i), ISO_HEIGHT_M.aisle || 0] } });
+  });
 }
 
 function drawPanel2Label() {
@@ -1952,11 +1969,23 @@ function gridCellStyle(r, c) {
   return '#4a5568'; // wall/facility
 }
 
-// 椅子（Chair Rule）：擺椅時段內，有營業店鋪標到的走道格畫小方塊，一家一張；兩家共用的格子畫兩張。
+// 沒營業的店鋪（空店鋪、關門）：2D 在店鋪每一格疊白色斜線，表示現在沒有這家店。
+function drawClosedShops() {
+  const cs = camera.cellPx, ctx = drawingContext;
+  ctx.save();
+  ctx.fillStyle = closedHatchPattern;
+  for (const sh of World.shops) {
+    if (Cell.isOpen(sh)) continue;
+    for (const s of sh.cells) ctx.fillRect(worldToScreenX(s.col), worldToScreenY(s.row, OFFSET_Y), cs, cs);
+  }
+  ctx.restore();
+}
+
+// 椅子（Chair Rule）：擺椅時段內，有營業店鋪標到的走道格畫紅色小方塊（跟 ISO 的紅色椅子同色），一家一張；兩家共用的格子畫兩張。
 function drawChairs() {
   if (!Cell.chairsOut()) return;
   const cs = camera.cellPx, w = cs * 0.3;
-  noStroke(); fill('#ecc94b');
+  noStroke(); fill('#e53e3e');
   for (const a of World.chairCells) {
     const n = Cell.chairCount(a.row, a.col);
     const x = worldToScreenX(a.col), y = worldToScreenY(a.row, OFFSET_Y);
