@@ -1,10 +1,21 @@
 // 由 99_config/build_config.js 產生，不要手改；改 99_config/**/*.json 後重跑腳本。
 const CONFIG = {
  "params": {
-  "CHAIR_BLOCK_COUNT": 2,
   "WALK_SPEED_MPS": 1.4,
   "CELL_SIZE_M": 2,
   "GIVEUP_TICKS": 8,
+  "CHAIR_SLOW_BEATS": 1,
+  "SIT_BEATS": 4,
+  "MEAL_BEATS": [
+   [
+    44,
+    52
+   ],
+   [
+    68,
+    76
+   ]
+  ],
   "VISION_RADIUS_CELLS": 50,
   "HEAT_BONUS_TIERS": {
    "E": [
@@ -36,6 +47,7 @@ const CONFIG = {
     ]
    ]
   },
+  "CHAIR_ATTRACT_BONUS": 2,
   "CHAIR_START_BEAT": 16,
   "CHAIR_END_BEAT": 80,
   "REOPEN_PROB": 0.09,
@@ -83,14 +95,7 @@ const CONFIG = {
    },
    "rules": {
     "passableFor": {
-     "desc": "牆/設施不可通行；攤位格只有等於興趣目標類型才可通行，否則視同牆；走道椅子數（occupiedBy 目前的長度，一家店一張）≥ CHAIR_BLOCK_COUNT 視同牆，少於閾值可通行；其餘走道、入口可通行；繞不過去沿用既有後備行為（exitStep／隨機走／giveupRule）",
-     "params": {
-      "CHAIR_BLOCK_COUNT": {
-       "value": 2,
-       "unit": "張",
-       "note": "走道格椅子數達此值才擋路，Tourist、Resident 共用"
-      }
-     },
+     "desc": "牆/設施不可通行；攤位格只有等於興趣目標類型才可通行，否則視同牆；走道、入口可通行，走道格上的椅子不影響通行",
      "impl": "agents/tourist.js#passableFor | agents/resident.js#passableFor",
      "status": "implemented"
     },
@@ -130,6 +135,64 @@ const CONFIG = {
     "exitStep": {
      "desc": "站在攤位格裡又沒有下一個目標 → 多來源 BFS（起點＝全走道格）走最近走道出去，不閒晃",
      "impl": "agents/tourist.js#exitStep | agents/resident.js#exitStep",
+     "status": "implemented"
+    },
+    "chairSlowdown": {
+     "desc": "Chair Slowdown Rule：走進有椅子的走道格（Chair_Mobility：擺椅時段內且 Cell.occupiedBy 裡有營業中的店）→ 在那格多停 CHAIR_SLOW_BEATS 個 beat 才能再移動；椅子不擋路也不擋視線；停留期間 ticksSinceProgress 照常累加",
+     "params": {
+      "CHAIR_SLOW_BEATS": {
+       "value": 1,
+       "unit": "beat",
+       "note": "自訂值，可覆寫"
+      }
+     },
+     "reads": [
+      "Cell.occupiedBy",
+      "shop.state",
+      "dayBeat"
+     ],
+     "impl": "agents/cell.js#slowIfChair | agents/cell.js#tickPause | agents/tourist.js#move | agents/resident.js#move",
+     "status": "implemented"
+    },
+    "chairTieBreak": {
+     "desc": "Chair Avoidance Rule：選下一步時若多個鄰格走場值一樣小 → 優先選沒有椅子的格子（非 Chair_Mobility）；只是平手偏好，不繞遠路，不改尋路方式",
+     "reads": [
+      "Cell.occupiedBy"
+     ],
+     "impl": "agents/cell.js#preferNoChair | agents/tourist.js#greedyStepToward | agents/tourist.js#bestStepByField | agents/resident.js#bestStepByField",
+     "status": "implemented"
+    },
+    "chairSeating": {
+     "desc": "Chair Seating Rule：成功到訪新店鋪的當下，若用餐時間（dayBeat 落在 MEAL_BEATS 任一區間）且該店有擺出椅子、seatsTaken < 座位數 → 坐下：seatsTaken+1，原地停留 SIT_BEATS 個 beat，停完 seatsTaken−1；否則不坐照原本逛完就走；滿座時走到門口仍算到訪（visited 照加、ticksSinceProgress 照歸零）；停留期間 ticksSinceProgress 照常累加。dayBeat 定義同 Vendor.chairRule，由呼叫端傳入",
+     "params": {
+      "SIT_BEATS": {
+       "value": 4,
+       "unit": "beat",
+       "note": "自訂值，可覆寫"
+      },
+      "MEAL_BEATS": {
+       "value": [
+        [
+         44,
+         52
+        ],
+        [
+         68,
+         76
+        ]
+       ],
+       "unit": "[起, 終) beat 區間",
+       "note": "用餐時間，全域一組；假設 96 beat＝24 小時（約 11:00～13:00、17:00～19:00）；Tourist.chairBonus 共用；自訂值，可覆寫"
+      }
+     },
+     "reads": [
+      "Cell.occupiedBy",
+      "Vendor.seatsTaken"
+     ],
+     "writes": [
+      "Vendor.seatsTaken"
+     ],
+     "impl": "agents/cell.js#trySit | agents/cell.js#hasSeat | agents/cell.js#release | agents/tourist.js#move | agents/resident.js#move",
      "status": "implemented"
     }
    }
@@ -195,7 +258,7 @@ const CONFIG = {
      "status": "implemented"
     },
     "isVisible": {
-     "desc": "可見性判定：牆、設施、建物、任何攤位格（終點除外）擋視線，走道格上的椅子不擋視線（只影響通行）；半徑上限 100 m ≈ 50 格；同一套也用在看其他 Tourist",
+     "desc": "可見性判定：牆、設施、建物、任何攤位格（終點除外）擋視線；半徑上限 100 m ≈ 50 格；同一套也用在看其他 Tourist",
      "params": {
       "VISION_RADIUS_CELLS": {
        "value": 50,
@@ -207,7 +270,7 @@ const CONFIG = {
      "status": "implemented"
     },
     "heatBonus": {
-     "desc": "Target Scoring：分數＝距離−heatBonus(熱度)，最小者勝出、同分隨機；熱度讀 touristTrailHeat。Tourist 目前固定走 E人分支",
+     "desc": "Target Scoring：分數＝距離−heatBonus(熱度)−chairBonus(店)，最小者勝出、同分隨機；熱度讀 touristTrailHeat。Tourist 目前固定走 E人分支",
      "params": {
       "HEAT_BONUS_TIERS": {
        "value": {
@@ -248,6 +311,22 @@ const CONFIG = {
      "impl": "agents/tourist.js#heatBonus",
      "status": "implemented"
     },
+    "chairBonus": {
+     "desc": "Target Scoring 的椅子加分：分數＝距離−heatBonus−chairBonus；用餐時間（Human.chairSeating 的 MEAL_BEATS）且該店鋪有擺出椅子、seatsTaken < 座位數 → 減掉 CHAIR_ATTRACT_BONUS（店感覺比較近）；非用餐時間、沒擺椅子、或座位已滿 → 0，滿座的店失去吸引力。只有 Tourist 套用，Resident 純看距離",
+     "params": {
+      "CHAIR_ATTRACT_BONUS": {
+       "value": 2,
+       "unit": "分數",
+       "note": "自訂值，可覆寫；不隨椅子數增加"
+      }
+     },
+     "reads": [
+      "Cell.occupiedBy",
+      "Vendor.seatsTaken"
+     ],
+     "impl": "agents/tourist.js#chairBonus",
+     "status": "implemented"
+    },
     "findVisibleTarget": {
      "desc": "看得到、未訪的同類目標裡 score 最小者",
      "impl": "agents/tourist.js#findVisibleTarget",
@@ -263,11 +342,36 @@ const CONFIG = {
   "Vendor": {
    "id": "Vendor",
    "label": "攤販（New／Old／Idle 的共同基礎）",
-   "note": "三者都不連續走路，狀態變化只有離散判定（固定不動／搬遷）。無共用屬性；共用 method 只有 chairRule（營業中的店）；Vendor (Idle) 依 generation 直接呼叫 Vendor (New) 的 relocationJudgement()。生存判定以店鋪（同 code 分組）為單位，不是個別 grid 格。",
-   "attributes": {},
+   "note": "三者都不連續走路，狀態變化只有離散判定（固定不動／搬遷）。共用屬性只有 seatsTaken；共用 method 只有 chairRule（椅子是否擺出，看時間與店鋪營業狀態）；Vendor (Idle) 依 generation 直接呼叫 Vendor (New) 的 relocationJudgement()。生存判定以店鋪（同 code 分組）為單位，不是個別 grid 格。",
+   "attributes": {
+    "seatsTaken": {
+     "desc": "這家店目前已坐下的人數，起始 0；座位數＝擺椅時段內 occupiedBy（QGIS 標定）含該店 code 的走道格數（一張椅子一個座位，時段外或這家店沒營業為 0），由時間、營業狀態與 occupiedBy 算出、不另存；Human.chairSeating 坐下加 1、停留結束減 1；重設模擬時歸零；擺椅時段結束後已坐的人照原停留計時走完；座位數與 seatsTaken 跟著位置 code 走（搬遷不改 code）",
+     "variants": [
+      {
+       "adjective": "一家還有空位的店",
+       "when": "seatsTaken < 座位數",
+       "effect": [
+        "Tourist.chairBonus 有加分",
+        "Human.chairSeating 讓人坐下"
+       ]
+      },
+      {
+       "adjective": "一家座位坐滿的店",
+       "when": "seatsTaken ≥ 座位數",
+       "effect": [
+        "chairBonus 歸零，人改去別家",
+        "走到門口的人照常算到訪、不坐"
+       ]
+      }
+     ],
+     "source": "2026-10-05 課堂筆記（椅子坐滿用餐時間人會去別家）",
+     "status": "implemented",
+     "impl": "agents/cell.js#seatsOf | agents/cell.js#trySit"
+    }
+   },
    "rules": {
     "chairRule": {
-     "desc": "每個 beat 對每家有椅子可以往外擺的店（code 出現在 ERA_DATA.cells['r,c'].occupiedBy 靜態清單）各自判斷：店有營業且 dayBeat 在 [CHAIR_START_BEAT, CHAIR_END_BEAT) → 把自己的 code 加進清單內走道格的 Cell.occupiedBy（每格每店最多一張）；否則移除。不記憶、不緩衝，每個 beat 只看店當下的營業狀態；endOfDay 不需另外處理。occupiedBy 非空 → mobility＝Chair_Mobility，空了回完全開放。適用營業中的店（Vendor (New)／(Old)），Vendor (Idle) 不適用；沒有屬性讓規則分岔",
+     "desc": "椅子是否擺出看時間與店鋪營業狀態：dayBeat 在 [CHAIR_START_BEAT, CHAIR_END_BEAT) 且該店有營業 → 走道格 occupiedBy（QGIS 標定清單）裡這家店有一張椅子；時段外或沒營業 → 沒有。「營業」＝店鋪狀態 new 或 old；blank 與 Vendor (Idle) 不擺；店鋪以位置 code 為準，搬遷只交換狀態不改 code。不寫入任何狀態：椅子狀態與座位數由時間＋營業狀態＋occupiedBy 當下算出，沒有重設或收椅處理。dayBeat＝程式的 dayBeatCounter，由呼叫端傳入。mobility 由此推得。椅子不擋路也不擋視線，行人反應見 Human.chairSlowdown／chairTieBreak／chairSeating 與 Tourist.chairBonus。沒有屬性讓規則分岔",
      "params": {
       "CHAIR_START_BEAT": {
        "value": 16,
@@ -280,12 +384,14 @@ const CONFIG = {
        "note": "擺椅終點（不含），全域一組"
       }
      },
-     "writes": [
-      "Cell.occupiedBy",
-      "Cell.mobility"
+     "reads": [
+      "ERA_DATA.cells[r,c].occupiedBy",
+      "dayBeat",
+      "shop.state"
      ],
      "source": "2026-10-02 課堂筆記（佔據一定跟空間有關，一條一條加反應規則）",
-     "status": "planned"
+     "status": "implemented",
+     "impl": "agents/cell.js#chairsOut | agents/cell.js#isOpen | agents/cell.js#chairCount"
     }
    }
   },
@@ -525,7 +631,7 @@ const CONFIG = {
      "status": "implemented"
     },
     "mobility": {
-     "desc": "可變動性：這一格（Block）開放或封閉、整個東西會不會動；定義的是 Block，不是攤販本身。取代「結構」一詞（會被問柱子還是形體）；用 mobility，不用 portable",
+     "desc": "可變動性：這一格（Block）開放或封閉、整個東西會不會動；定義的是 Block，不是攤販本身。走道格由時間、店鋪營業狀態與 occupiedBy 推得（擺椅時段內 occupiedBy 裡至少有一家有營業的店＝Chair_Mobility，否則完全開放）",
      "candidates": [
       "完全開放",
       "半開放",
@@ -533,40 +639,31 @@ const CONFIG = {
       "流動攤車",
       "Chair_Mobility"
      ],
-     "implemented": [
-      "完全開放",
-      "Chair_Mobility"
-     ],
      "variants": [
       {
        "adjective": "一個開放的走道格（完全開放）",
-       "when": "mobility == 完全開放",
+       "when": "擺椅時段外，或 occupiedBy 裡沒有營業中的店",
        "effect": [
         "passableFor 照走道處理，可通行"
        ]
       },
       {
-       "adjective": "一個椅子還沒擠滿的走道格（Chair_Mobility）",
-       "when": "mobility == Chair_Mobility 且 椅子數 < CHAIR_BLOCK_COUNT",
+       "adjective": "一個被店家擺了椅子的走道格（Chair_Mobility）",
+       "when": "擺椅時段內，occupiedBy 裡至少有一家有營業的店",
        "effect": [
-        "passableFor 可通行，一張椅子不擋路"
-       ]
-      },
-      {
-       "adjective": "一個被椅子擋住的走道格（Chair_Mobility）",
-       "when": "mobility == Chair_Mobility 且 椅子數 ≥ CHAIR_BLOCK_COUNT",
-       "effect": [
-        "passableFor 視同牆，行人繞開"
+        "passableFor 照走道處理，行人照常通過",
+        "Human.chairSlowdown：行人走進去多停 CHAIR_SLOW_BEATS",
+        "Human.chairTieBreak：距離一樣近時優先走沒椅子的格子"
        ]
       }
      ],
      "source": "2026-10-02 課堂筆記（以可變動性為單一軸線往下細分）",
-     "replaces": "STALL_STRUCTURE（移動攤販／半開放／鐵門封閉），程式碼尚未改名",
-     "impl": "agents/cell.js#buildCellSpace",
-     "status": "implemented"
+     "replaces": "STALL_STRUCTURE（移動攤販／半開放／鐵門封閉）",
+     "status": "implemented",
+     "impl": "agents/cell.js#hasChair"
     },
     "occupiedBy": {
-     "desc": "走道格 mobility＝Chair_Mobility（椅子）時，目前在這格擺椅的店鋪 code 清單（一家一張，兩家共用的用餐區可有兩個）；椅子數＝清單長度；平常為空",
+     "desc": "走道格上有資格擺椅的店鋪 code 清單（兩家共用的用餐區可有兩個），QGIS 標定（ERA_DATA.cells['r,c'].occupiedBy，值是 display_code），固定不變、不隨模擬改寫；只有這一份。椅子是否擺出看時間與店鋪營業狀態（見 Vendor.chairRule）",
      "source": "使用者 2026-10-04 在 QGIS aisle.occupied_by 標定 33 格，經 adapter_era_data.py 輸出到 ERA_DATA",
      "impl": "agents/cell.js#buildCellSpace",
      "status": "implemented"

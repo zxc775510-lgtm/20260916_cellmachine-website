@@ -427,8 +427,12 @@ function computeStallGroups() {
     s.shop = g;
   });
   World.shops = Object.values(groups);
+  World.shopByCode = groups; // Chair Rule：occupiedBy 存店鋪 code，用這個反查店鋪狀態
   World.cellSpace = Cell.buildCellSpace(); // Space Class 陣列（ROWS×COLS），見 agent_setting.md「Space Class」
-  World.shops.forEach(s => { s.corridorFrontage = Cell.shopFrontage(s); }); // Cell Attribute 彙總，固定值，設定時算一次
+  World.shops.forEach(s => { s.corridorFrontage = Cell.shopFrontage(s); s.seatsTaken = 0; s.chairCells = 0; }); // Cell Attribute 彙總，固定值，設定時算一次
+  // 椅子：QGIS 標定有 occupiedBy 的走道格（固定）；店鋪的 chairCells＝標到它的格數（座位數上限，營業且擺椅時段內才算，見 Cell.seatsOf）
+  World.chairCells = World.aisleCells.filter(a => World.cellSpace[a.row][a.col].occupiedBy.length);
+  World.chairCells.forEach(a => World.cellSpace[a.row][a.col].occupiedBy.forEach(code => { if (groups[code]) groups[code].chairCells++; }));
   N_STALLS = World.shops.length;           // 33 家店鋪（不是162格）
   N_BLANK_INIT = N_STALLS - N_OLD_INIT - N_NEW_INIT;
 }
@@ -774,6 +778,7 @@ function draw() {
   // 畫面一：原本的模擬器（攤位營業狀態＋行人）。20260914：拿掉狀態數量隨時間變化的折線圖（drawChart）。
   withGridClip(OFFSET_Y, () => {
     drawGrid();
+    drawChairs();
     drawStallGroupOutlines(OFFSET_Y);
     Tourist.drawVisionHighlight2D(); // 20260914 需求#2：2D 也用同一份可見格資料做高亮呈現
     Tourist.draw(window);
@@ -808,7 +813,8 @@ function draw() {
 // 5. 初始化 / 重設
 // ============================================================
 function resetSimulation() {
-  World.shops.forEach(sh => { sh.state = 'blank'; });
+  World.shops.forEach(sh => { sh.state = 'blank'; sh.seatsTaken = 0; });
+  Cell.dayBeat = 0;
 
   // old/new 都是固定名單，不隨機分配；其餘店鋪維持上面設好的 blank。
   const oldShops = World.shops.filter(sh => OLD_FIXED_CODES.includes(sh.code));
@@ -842,6 +848,7 @@ function beat() {
 
   dayBeatCounter++;
   if (dayBeatCounter >= DAY_LENGTH_BEATS) { dayBeatCounter = 0; endOfDay(); }
+  Cell.dayBeat = dayBeatCounter; // Chair Rule：dayBeat 由呼叫端傳給 Cell，椅子/座位/用餐時間都由它加店鋪狀態算出
 }
 
 function stepTick() {
@@ -874,6 +881,7 @@ function captureRunSnapshot() {
 function endOfDay() {
   Tourist.pedestrians = [];
   Resident.pedestrians = [];
+  World.shops.forEach(s => { s.seatsTaken = 0; }); // 行人清空了，坐著的人一起清（Chair Seating 的座位帳）
   dayCounter++;
 }
 
@@ -1944,6 +1952,18 @@ function gridCellStyle(r, c) {
   return '#4a5568'; // wall/facility
 }
 
+// 椅子（Chair Rule）：擺椅時段內，有營業店鋪標到的走道格畫小方塊，一家一張；兩家共用的格子畫兩張。
+function drawChairs() {
+  if (!Cell.chairsOut()) return;
+  const cs = camera.cellPx, w = cs * 0.3;
+  noStroke(); fill('#ecc94b');
+  for (const a of World.chairCells) {
+    const n = Cell.chairCount(a.row, a.col);
+    const x = worldToScreenX(a.col), y = worldToScreenY(a.row, OFFSET_Y);
+    for (let i = 0; i < n; i++) rect(x + cs * (0.12 + 0.42 * i), y + cs * 0.35, w, w, 1);
+  }
+}
+
 function drawGrid() {
   const [r0, r1] = visibleRowRange(), [c0, c1] = visibleColRange();
   const cs = camera.cellPx;
@@ -2058,6 +2078,8 @@ function updateStatsDisplay() {
   document.getElementById('stats').innerHTML = `
     <div class="stat-line"><span>Tick / 年數（上限 ${MAX_TICKS} / 10年）</span><b>${tick} / ${years}年${finished ? ' ✅' : ''}</b></div>
     <div class="stat-line"><span>第幾天（視覺刷新）</span><b>${dayCounter}</b></div>
+    <div class="stat-line"><span>日內 beat　擺椅 ${Cell.chairsOut() ? '✅' : '—'}　用餐 ${Cell.isMealTime() ? '🍴' : '—'}</span><b>${dayBeatCounter} / ${DAY_LENGTH_BEATS}</b></div>
+    <div class="stat-line"><span>椅子數 / 坐著的人</span><b>${World.chairCells.reduce((n, a) => n + Cell.chairCount(a.row, a.col), 0)} / ${World.shops.reduce((n, s) => n + s.seatsTaken, 0)}</b></div>
     <div class="stat-line"><span>new（營業中）</span><b>${counts.new}</b></div>
     <div class="stat-line"><span>new_unused（閒置）</span><b>${counts.new_unused}</b></div>
     <div class="stat-line"><span>old（營業中）</span><b>${counts.old}</b></div>

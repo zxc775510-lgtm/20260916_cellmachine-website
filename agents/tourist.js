@@ -56,6 +56,9 @@ const Tourist = {
     return t ? t[1] : 0;
   },
 
+  // Target Scoring 的椅子加分（Tourist 專屬）：用餐時間且該店有擺出椅子、還有空位 → 分數減 CHAIR_ATTRACT_BONUS（感覺比較近）；滿座或非用餐時間為 0。
+  chairBonus(shop) { return Cell.hasSeat(shop) ? CONFIG.params.CHAIR_ATTRACT_BONUS : 0; },
+
   // 演算法第2點 findVisibleTarget：看得到、還沒去過的同類型目標裡，score(距離−熱度加成)最小者，同分隨機。
   // 到訪判定以店鋪（s.shop.code）為單位：同店鋪的其他格子不會被當成沒去過的新目標。
   findVisibleTarget(p, trailHeat) {
@@ -64,7 +67,7 @@ const Tourist = {
       if (s.shop.state !== this.interestState || p.visited.has(s.shop.code)) continue;
       if (!this.isVisible(p.row, p.col, s.row, s.col)) continue;
       const dist = Math.hypot(s.row - p.row, s.col - p.col);
-      const score = dist - this.heatBonus(trailHeat[s.row][s.col]);
+      const score = dist - this.heatBonus(trailHeat[s.row][s.col]) - this.chairBonus(s.shop);
       if (score < best) { best = score; cands = [s]; }
       else if (score === best) cands.push(s);
     }
@@ -95,6 +98,7 @@ const Tourist = {
       if (d < best) { best = d; cands = [[nr, nc]]; }
       else if (d === best) cands.push([nr, nc]);
     }
+    cands = Cell.preferNoChair(cands); // Chair Avoidance Rule：距離一樣近時優先走沒椅子的格子
     return cands.length ? cands[Math.floor(Math.random() * cands.length)] : null;
   },
 
@@ -150,6 +154,7 @@ const Tourist = {
       if (v < best) { best = v; cands = [[nr, nc]]; }
       else if (v === best) cands.push([nr, nc]);
     }
+    cands = Cell.preferNoChair(cands); // Chair Avoidance Rule
     return cands.length ? cands[Math.floor(Math.random() * cands.length)] : null;
   },
   exitStep(p) {
@@ -175,6 +180,15 @@ const Tourist = {
   move(trailHeat) {
     const stillAlive = [];
     for (const p of this.pedestrians) {
+      if (!Cell.tickPause(p)) this.step(p, trailHeat); // 停留中（走慢／坐下）這個 beat 不移動
+      p.ticksSinceProgress++; // 演算法第7點：離上次成功到訪過了幾個 beat（停留期間照常累加）
+      if (p.ticksSinceProgress < this.giveupTicks * K_BEATS_PER_TICK) stillAlive.push(p);
+      else Cell.release(p);
+    }
+    this.pedestrians = stillAlive;
+  },
+
+  step(p, trailHeat) {
       const target = this.findVisibleTarget(p, trailHeat);
       let next;
       if (target) {
@@ -189,6 +203,7 @@ const Tourist = {
         const dr = next[0] - p.row, dc = next[1] - p.col; // 記朝向（純視覺，見 spawnExpected 註解）
         if (dr !== 0 || dc !== 0) { p.faceDr = dr; p.faceDc = dc; }
         p.row = next[0]; p.col = next[1];
+        Cell.slowIfChair(p); // Chair Slowdown Rule
       }
 
       trailHeat[p.row][p.col] += TRAIL_STEP_ADD; // 不衰減、不封頂，見 simulator_setting.md
@@ -198,11 +213,8 @@ const Tourist = {
         landed.shop._visitTick = (landed.shop._visitTick || 0) + 1; // 人氣熱度記在店鋪上，供 VendorNew 用
         p.visited.add(landed.shop.code);
         p.ticksSinceProgress = 0;
+        Cell.trySit(p, landed.shop); // Chair Seating Rule
       }
-      p.ticksSinceProgress++; // 演算法第7點：離上次成功到訪過了幾個 beat
-      if (p.ticksSinceProgress < this.giveupTicks * K_BEATS_PER_TICK) stillAlive.push(p);
-    }
-    this.pedestrians = stillAlive;
   },
 
   // 使用者需求(2)：定格在格子中心，不逐幀隨機偏移，避免視覺抖動。

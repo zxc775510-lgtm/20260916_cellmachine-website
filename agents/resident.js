@@ -74,6 +74,7 @@ const Resident = {
       if (v < best) { best = v; cands = [[nr, nc]]; }
       else if (v === best) cands.push([nr, nc]);
     }
+    cands = Cell.preferNoChair(cands); // Chair Avoidance Rule：距離一樣近時優先走沒椅子的格子
     return cands.length ? cands[Math.floor(Math.random() * cands.length)] : null;
   },
   // 使用者需求(2)：逛完店鋪（或暫時找不到下一個未訪目標）時不留在店內閒晃，直接找最近走道走出去。
@@ -98,6 +99,15 @@ const Resident = {
   move(trailHeat) {
     const stillAlive = [];
     for (const p of this.pedestrians) {
+      if (!Cell.tickPause(p)) this.step(p, trailHeat); // 停留中（走慢／坐下）這個 beat 不移動
+      p.ticksSinceProgress++;
+      if (p.ticksSinceProgress < this.giveupTicks * K_BEATS_PER_TICK) stillAlive.push(p);
+      else Cell.release(p);
+    }
+    this.pedestrians = stillAlive;
+  },
+
+  step(p, trailHeat) {
       const targets = World.stalls.filter(s => s.shop.state === this.interestState && !p.visited.has(s.shop.code));
       let next = null;
       if (targets.length > 0) {
@@ -105,7 +115,7 @@ const Resident = {
       }
       if (!next && World.cellType[p.row][p.col] === 'stallslot') next = this.exitStep(p);
       if (!next) next = this.randomStep(p); // 沒有未訪目標／目標暫時不可達的備援
-      if (next) { p.row = next[0]; p.col = next[1]; }
+      if (next) { p.row = next[0]; p.col = next[1]; Cell.slowIfChair(p); } // Chair Slowdown Rule
 
       trailHeat[p.row][p.col] += TRAIL_STEP_ADD; // 不衰減、不封頂，見 simulator_setting.md
 
@@ -114,11 +124,8 @@ const Resident = {
         landed.shop._visitTick = (landed.shop._visitTick || 0) + 1; // 人氣熱度記在店鋪上，供 VendorOld/VendorNew 用
         p.visited.add(landed.shop.code);
         p.ticksSinceProgress = 0;
+        Cell.trySit(p, landed.shop); // Chair Seating Rule
       }
-      p.ticksSinceProgress++;
-      if (p.ticksSinceProgress < this.giveupTicks * K_BEATS_PER_TICK) stillAlive.push(p);
-    }
-    this.pedestrians = stillAlive;
   },
 
   // 使用者需求(2)：定格在格子中心，不逐幀隨機偏移，避免視覺抖動。
