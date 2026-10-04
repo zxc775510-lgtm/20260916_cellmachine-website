@@ -2,7 +2,7 @@
 // 對照範例：20260824/isovist_sim.html 的 isVisible()/findVisibleTarget()/findVisiblePeer()/greedyStepToward()，函式名稱刻意保持一致方便對照。
 const Tourist = {
   interestState: 'new',   // Attribute：興趣目標＝營業中的 Vendor (New)，排除這趟已到訪過的
-  giveupTicks: CONFIG.params.GIVEUP_TICKS, // 數值來源：99_config/agents/human.json；        // 演算法第7點 GIVEUP_TICKS；文件沒留原始數字，沿用 isovist_sim.html 的自訂值
+  giveupSec: CONFIG.params.GIVEUP_SEC, // 數值來源：99_config/agents/human.json；        // 演算法第7點 GIVEUP_SEC；文件沒留原始數字，沿用 isovist_sim.html 的自訂值
   visionRadius: CONFIG.params.VISION_RADIUS_CELLS, // 數值來源：99_config/agents/tourist.json；      // 監測範圍：100公尺 ÷ 每格2公尺 ≈ 50格半徑（本圖對角線~28.6格，目前不太會擋到誰，公式保留供之後放大場景重算）
   pedestrians: [],
 
@@ -180,9 +180,9 @@ const Tourist = {
   move(trailHeat) {
     const stillAlive = [];
     for (const p of this.pedestrians) {
-      if (!Cell.tickPause(p)) this.step(p, trailHeat); // 停留中（走慢／坐下）這個 beat 不移動
-      p.ticksSinceProgress++; // 演算法第7點：離上次成功到訪過了幾個 beat（停留期間照常累加）
-      if (p.ticksSinceProgress < this.giveupTicks * K_BEATS_PER_TICK) stillAlive.push(p);
+      if (!Cell.tickPause(p)) this.step(p, trailHeat); // 停留中（走慢／坐下）這一步不移動
+      p.ticksSinceProgress++; // 演算法第7點：離上次成功到訪過了幾步（＝幾秒）（停留期間照常累加）
+      if (p.ticksSinceProgress < this.giveupSec) stillAlive.push(p);
       else Cell.release(p);
     }
     this.pedestrians = stillAlive;
@@ -206,11 +206,11 @@ const Tourist = {
         Cell.slowIfChair(p); // Chair Slowdown Rule
       }
 
-      trailHeat[p.row][p.col] += TRAIL_STEP_ADD; // 不衰減、不封頂，見 simulator_setting.md
+      trailHeat[p.row][p.col] += TRAIL_STEP_ADD * heatW; // 不衰減、不封頂，見 simulator_setting.md
 
       const landed = World.stallAtRC[p.row + ',' + p.col];
       if (landed && landed.shop.state === this.interestState && !p.visited.has(landed.shop.code)) {
-        landed.shop._visitTick = (landed.shop._visitTick || 0) + 1; // 人氣熱度記在店鋪上，供 VendorNew 用
+        landed.shop._visitTick = (landed.shop._visitTick || 0) + visitW; // 人氣熱度記在店鋪上，供 VendorNew 用
         p.visited.add(landed.shop.code);
         p.ticksSinceProgress = 0;
         Cell.trySit(p, landed.shop); // Chair Seating Rule

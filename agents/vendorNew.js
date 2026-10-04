@@ -24,7 +24,7 @@ const VendorNew = {
   heatOf(s) { return s.visitHist.reduce((a, b) => a + b, 0); },
 
   updateHeatHistory(s) {
-    const v = s._visitTick || 0;
+    const v = Math.round(s._visitTick || 0); // _visitTick 已乘 VISIT_NORM 歸一回舊量級（見 index.html），取整數才跟人氣門檻同單位
     s.visitHist.push(v);
     if (s.visitHist.length > this.HEAT_WINDOW) s.visitHist.shift();
     s.zeroStreak = v === 0 ? s.zeroStreak + 1 : 0;

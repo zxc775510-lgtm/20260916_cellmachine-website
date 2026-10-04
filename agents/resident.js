@@ -3,7 +3,7 @@
 // Resident 沒有 Personality 屬性，純看距離，不套用 Target Scoring Rule（heatBonus）——見主文件 Resident「Rule」段落。
 const Resident = {
   interestState: 'old',   // Attribute：興趣目標＝營業中的 Vendor (Old)，排除這趟已到訪過的
-  giveupTicks: CONFIG.params.GIVEUP_TICKS, // 數值來源：99_config/agents/human.json；        // 同 Tourist，見演算法第7點
+  giveupSec: CONFIG.params.GIVEUP_SEC, // 數值來源：99_config/agents/human.json；        // 同 Tourist，見演算法第7點
   pedestrians: [],
 
   reset() {
@@ -99,9 +99,9 @@ const Resident = {
   move(trailHeat) {
     const stillAlive = [];
     for (const p of this.pedestrians) {
-      if (!Cell.tickPause(p)) this.step(p, trailHeat); // 停留中（走慢／坐下）這個 beat 不移動
+      if (!Cell.tickPause(p)) this.step(p, trailHeat); // 停留中（走慢／坐下）這一步不移動
       p.ticksSinceProgress++;
-      if (p.ticksSinceProgress < this.giveupTicks * K_BEATS_PER_TICK) stillAlive.push(p);
+      if (p.ticksSinceProgress < this.giveupSec) stillAlive.push(p);
       else Cell.release(p);
     }
     this.pedestrians = stillAlive;
@@ -117,11 +117,11 @@ const Resident = {
       if (!next) next = this.randomStep(p); // 沒有未訪目標／目標暫時不可達的備援
       if (next) { p.row = next[0]; p.col = next[1]; Cell.slowIfChair(p); } // Chair Slowdown Rule
 
-      trailHeat[p.row][p.col] += TRAIL_STEP_ADD; // 不衰減、不封頂，見 simulator_setting.md
+      trailHeat[p.row][p.col] += TRAIL_STEP_ADD * heatW; // 不衰減、不封頂，見 simulator_setting.md
 
       const landed = World.stallAtRC[p.row + ',' + p.col];
       if (landed && landed.shop.state === this.interestState && !p.visited.has(landed.shop.code)) {
-        landed.shop._visitTick = (landed.shop._visitTick || 0) + 1; // 人氣熱度記在店鋪上，供 VendorOld/VendorNew 用
+        landed.shop._visitTick = (landed.shop._visitTick || 0) + visitW; // 人氣熱度記在店鋪上，供 VendorOld/VendorNew 用
         p.visited.add(landed.shop.code);
         p.ticksSinceProgress = 0;
         Cell.trySit(p, landed.shop); // Chair Seating Rule

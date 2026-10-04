@@ -20,9 +20,10 @@ const Cell = {
   },
 
   // ===== 椅子（Chair Rule／Mobility Attribute，agent_setting.md）：椅子狀態、座位數都是當下算出來，不存 =====
-  dayBeat: 0, // 日循環 beat（呼叫端 index.html 的 beat()／resetSimulation 設定，見 Chair Rule「dayBeat 由呼叫端傳入」）
+  daySec: 0, // 當天第幾秒（呼叫端 index.html 的 advanceClock()／resetSimulation 設定，見 Chair Rule「daySec 由呼叫端傳入」）
+  hourNow() { return this.daySec / 3600; },
 
-  chairsOut() { return this.dayBeat >= CONFIG.params.CHAIR_START_BEAT && this.dayBeat < CONFIG.params.CHAIR_END_BEAT; },
+  chairsOut() { return this.hourNow() >= CONFIG.params.CHAIR_START_HOUR && this.hourNow() < CONFIG.params.CHAIR_END_HOUR; },
   isOpen(shop) { return !!shop && (shop.state === 'new' || shop.state === 'old'); }, // 「營業」＝new 或 old
 
   // 這格現在有幾張椅子：擺椅時段內，occupiedBy 裡有營業的店各一張。
@@ -36,23 +37,23 @@ const Cell = {
   // 座位數＝這家店現在擺出的椅子數（一格一張）；時段外或沒營業為 0。chairCells 在 computeStallGroups 數一次。
   seatsOf(shop) { return this.chairsOut() && this.isOpen(shop) ? shop.chairCells : 0; },
 
-  // 用餐時間（MEAL_BEATS 任一 [起,終) 區間）
-  isMealTime() { return CONFIG.params.MEAL_BEATS.some(([a, b]) => this.dayBeat >= a && this.dayBeat < b); },
+  // 用餐時間（MEAL_HOURS 任一 [起,終) 小時區間）
+  isMealTime() { return CONFIG.params.MEAL_HOURS.some(([a, b]) => this.hourNow() >= a && this.hourNow() < b); },
   // 用餐時間且這家店還有空位：Chair Seating Rule（坐下）與 Tourist 的 chairBonus（吸引）共用。
   hasSeat(shop) { return this.isMealTime() && shop.seatsTaken < this.seatsOf(shop); },
 
-  // 停留（Chair Slowdown：走進有椅子的格子多停 CHAIR_SLOW_BEATS；Chair Seating：坐下停 SIT_BEATS）。
-  // 行人記 p.pause（還要停幾個 beat）、p.sitShop（坐下的店鋪，停完還座位）。Tourist／Resident 的 move() 共用。
-  tickPause(p) { // 停留中 → true（這個 beat 不移動）；停完那一刻還座位
+  // 停留（Chair Slowdown：走進有椅子的格子多停 CHAIR_SLOW_SEC；Chair Seating：坐下停 SIT_SEC）。
+  // 行人記 p.pause（還要停幾步＝幾秒）、p.sitShop（坐下的店鋪，停完還座位）。Tourist／Resident 的 move() 共用。
+  tickPause(p) { // 停留中 → true（這一步不移動）；停完那一刻還座位
     if (!(p.pause > 0)) return false;
     if (--p.pause === 0) this.release(p);
     return true;
   },
   release(p) { if (p.sitShop) { p.sitShop.seatsTaken--; p.sitShop = null; } }, // 停完或離場都要還座位
-  slowIfChair(p) { if (this.hasChair(p.row, p.col)) p.pause = CONFIG.params.CHAIR_SLOW_BEATS; },
+  slowIfChair(p) { if (this.hasChair(p.row, p.col)) p.pause = CONFIG.params.CHAIR_SLOW_SEC; },
   trySit(p, shop) { // Chair Seating Rule：到訪當下用餐時間且有空位 → 坐下；滿座照常算到訪、不坐
     if (!this.hasSeat(shop)) return;
-    shop.seatsTaken++; p.sitShop = shop; p.pause = CONFIG.params.SIT_BEATS;
+    shop.seatsTaken++; p.sitShop = shop; p.pause = CONFIG.params.SIT_SEC;
   },
 
   // Chair Avoidance Rule：距離一樣近的候選格裡，優先選沒有椅子的；全都有椅子就維持原樣。

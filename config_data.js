@@ -1,19 +1,19 @@
 // 由 99_config/build_config.js 產生，不要手改；改 99_config/**/*.json 後重跑腳本。
 const CONFIG = {
  "params": {
-  "WALK_SPEED_MPS": 1.4,
-  "CELL_SIZE_M": 2,
-  "GIVEUP_TICKS": 8,
-  "CHAIR_SLOW_BEATS": 1,
-  "SIT_BEATS": 4,
-  "MEAL_BEATS": [
+  "WALK_SPEED_MPS": 1,
+  "CELL_SIZE_M": 1,
+  "GIVEUP_SEC": 1800,
+  "CHAIR_SLOW_SEC": 1,
+  "SIT_SEC": 1200,
+  "MEAL_HOURS": [
    [
-    44,
-    52
+    11,
+    13
    ],
    [
-    68,
-    76
+    17,
+    19
    ]
   ],
   "VISION_RADIUS_CELLS": 50,
@@ -48,8 +48,8 @@ const CONFIG = {
    ]
   },
   "CHAIR_ATTRACT_BONUS": 2,
-  "CHAIR_START_BEAT": 16,
-  "CHAIR_END_BEAT": 80,
+  "CHAIR_START_HOUR": 4,
+  "CHAIR_END_HOUR": 20,
   "REOPEN_PROB": 0.09,
   "HEAT_WINDOW": 2,
   "COLD_STREAK_THRESHOLD": 3,
@@ -66,7 +66,7 @@ const CONFIG = {
   "Human": {
    "id": "Human",
    "label": "在市場走動找攤位的人（Tourist／Resident 的共同基礎）",
-   "note": "Tourist／Resident 在程式碼裡是各自獨立的完整實作，共用規則是兩邊各寫一份、邏輯相同；extends 只是文件層級的 DRY。",
+   "note": "Tourist／Resident 在程式碼裡是各自獨立的完整實作，共用規則",
    "attributes": {
     "interestTarget": {
      "desc": "興趣目標＝營業中的某類 Vendor，排除這趟已到訪（以店鋪 code 計）的；值域由子類決定",
@@ -105,28 +105,28 @@ const CONFIG = {
      "status": "implemented"
     },
     "movementSpeed": {
-     "desc": "純物理參考常數（非函式、程式碼未使用）：1.4 m/s，每格 2 m ≈ 1.43 秒/格；不用來校準 beat/tick",
+     "desc": "物理參考常數：1 步＝走 1 格＝1 秒（1 m ÷ 1 m/s），時間系統見 simulator_setting.md「時間系統」",
      "params": {
       "WALK_SPEED_MPS": {
-       "value": 1.4,
+       "value": 1,
        "unit": "m/s",
        "note": "Gehl 設計步速"
       },
       "CELL_SIZE_M": {
-       "value": 2,
+       "value": 1,
        "unit": "m",
-       "note": "市場內部網格"
+       "note": "研究範圍網格 1 格 = 1 m"
       }
      },
      "status": "reference"
     },
     "giveupRule": {
-     "desc": "ticksSinceProgress（距上次到訪新攤位的 beat 數）達 GIVEUP_TICKS×K_BEATS_PER_TICK 就離場；到訪新攤位歸零",
+     "desc": "ticksSinceProgress（距上次到訪新攤位的步數＝秒數）達 GIVEUP_SEC 就離場；到訪新攤位歸零",
      "params": {
-      "GIVEUP_TICKS": {
-       "value": 8,
-       "unit": "tick",
-       "note": "Tourist、Resident 共用"
+      "GIVEUP_SEC": {
+       "value": 1800,
+       "unit": "sec",
+       "note": "30 分鐘；Tourist、Resident 共用；自訂值，可覆寫"
       }
      },
      "impl": "agents/tourist.js#move | agents/resident.js#move（inline）",
@@ -138,18 +138,18 @@ const CONFIG = {
      "status": "implemented"
     },
     "chairSlowdown": {
-     "desc": "Chair Slowdown Rule：走進有椅子的走道格（Chair_Mobility：擺椅時段內且 Cell.occupiedBy 裡有營業中的店）→ 在那格多停 CHAIR_SLOW_BEATS 個 beat 才能再移動；椅子不擋路也不擋視線；停留期間 ticksSinceProgress 照常累加",
+     "desc": "Chair Slowdown Rule：走進有椅子的走道格（Chair_Mobility：擺椅時段內且 Cell.occupiedBy 裡有營業中的店）→ 在那格多停 CHAIR_SLOW_SEC 秒（步）才能再移動；椅子不擋路也不擋視線；停留期間 ticksSinceProgress 照常累加",
      "params": {
-      "CHAIR_SLOW_BEATS": {
+      "CHAIR_SLOW_SEC": {
        "value": 1,
-       "unit": "beat",
+       "unit": "sec",
        "note": "自訂值，可覆寫"
       }
      },
      "reads": [
       "Cell.occupiedBy",
       "shop.state",
-      "dayBeat"
+      "daySec"
      ],
      "impl": "agents/cell.js#slowIfChair | agents/cell.js#tickPause | agents/tourist.js#move | agents/resident.js#move",
      "status": "implemented"
@@ -163,26 +163,26 @@ const CONFIG = {
      "status": "implemented"
     },
     "chairSeating": {
-     "desc": "Chair Seating Rule：成功到訪新店鋪的當下，若用餐時間（dayBeat 落在 MEAL_BEATS 任一區間）且該店有擺出椅子、seatsTaken < 座位數 → 坐下：seatsTaken+1，原地停留 SIT_BEATS 個 beat，停完 seatsTaken−1；否則不坐照原本逛完就走；滿座時走到門口仍算到訪（visited 照加、ticksSinceProgress 照歸零）；停留期間 ticksSinceProgress 照常累加。dayBeat 定義同 Vendor.chairRule，由呼叫端傳入",
+     "desc": "Chair Seating Rule：成功到訪新店鋪的當下，若用餐時間（當天時刻落在 MEAL_HOURS 任一小時區間）且該店有擺出椅子、seatsTaken < 座位數 → 坐下：seatsTaken+1，原地停留 SIT_SEC 秒（步），停完 seatsTaken−1；否則不坐照原本逛完就走；滿座時走到門口仍算到訪（visited 照加、ticksSinceProgress 照歸零）；停留期間 ticksSinceProgress 照常累加。daySec（當天第幾秒）定義同 Vendor.chairRule，由呼叫端傳入",
      "params": {
-      "SIT_BEATS": {
-       "value": 4,
-       "unit": "beat",
-       "note": "自訂值，可覆寫"
+      "SIT_SEC": {
+       "value": 1200,
+       "unit": "sec",
+       "note": "20 分鐘；自訂值，可覆寫"
       },
-      "MEAL_BEATS": {
+      "MEAL_HOURS": {
        "value": [
         [
-         44,
-         52
+         11,
+         13
         ],
         [
-         68,
-         76
+         17,
+         19
         ]
        ],
-       "unit": "[起, 終) beat 區間",
-       "note": "用餐時間，全域一組；假設 96 beat＝24 小時（約 11:00～13:00、17:00～19:00）；Tourist.chairBonus 共用；自訂值，可覆寫"
+       "unit": "[起, 終) 小時區間",
+       "note": "用餐時間 11:00～13:00、17:00～19:00，全域一組；Tourist.chairBonus 共用；自訂值，可覆寫"
       }
      },
      "reads": [
@@ -200,7 +200,7 @@ const CONFIG = {
   "Resident": {
    "id": "Resident",
    "extends": "Human",
-   "label": "熟悉市場的在地居民，靠已知路線直接去",
+   "label": "熟悉市場的在地居民",
    "attributes": {
     "personality": {
      "desc": "無——只有 Tourist 有這個屬性，Resident 不套用 Target Scoring",
@@ -225,10 +225,10 @@ const CONFIG = {
   "Tourist": {
    "id": "Tourist",
    "extends": "Human",
-   "label": "想逛新創攤位的訪客，不熟悉市場，靠 isovist 邊走邊找",
+   "label": "想逛新創攤位的訪客",
    "attributes": {
     "personality": {
-     "desc": "人格特質；目前固定為 E人（常數，程式碼沒有存成欄位），I人只是定義好、留給未來的人格比例功能",
+     "desc": "人格特質E人（常數，程式碼沒有存成欄位）",
      "variants": [
       {
        "adjective": "一個熱情外向的人（E人）",
@@ -312,7 +312,7 @@ const CONFIG = {
      "status": "implemented"
     },
     "chairBonus": {
-     "desc": "Target Scoring 的椅子加分：分數＝距離−heatBonus−chairBonus；用餐時間（Human.chairSeating 的 MEAL_BEATS）且該店鋪有擺出椅子、seatsTaken < 座位數 → 減掉 CHAIR_ATTRACT_BONUS（店感覺比較近）；非用餐時間、沒擺椅子、或座位已滿 → 0，滿座的店失去吸引力。只有 Tourist 套用，Resident 純看距離",
+     "desc": "Target Scoring 的椅子加分：分數＝距離−heatBonus−chairBonus；用餐時間（Human.chairSeating 的 MEAL_HOURS）且該店鋪有擺出椅子、seatsTaken < 座位數 → 減掉 CHAIR_ATTRACT_BONUS（店感覺比較近）；非用餐時間、沒擺椅子、或座位已滿 → 0，滿座的店失去吸引力。只有 Tourist 套用，Resident 純看距離",
      "params": {
       "CHAIR_ATTRACT_BONUS": {
        "value": 2,
@@ -371,22 +371,22 @@ const CONFIG = {
    },
    "rules": {
     "chairRule": {
-     "desc": "椅子是否擺出看時間與店鋪營業狀態：dayBeat 在 [CHAIR_START_BEAT, CHAIR_END_BEAT) 且該店有營業 → 走道格 occupiedBy（QGIS 標定清單）裡這家店有一張椅子；時段外或沒營業 → 沒有。「營業」＝店鋪狀態 new 或 old；blank 與 Vendor (Idle) 不擺；店鋪以位置 code 為準，搬遷只交換狀態不改 code。不寫入任何狀態：椅子狀態與座位數由時間＋營業狀態＋occupiedBy 當下算出，沒有重設或收椅處理。dayBeat＝程式的 dayBeatCounter，由呼叫端傳入。mobility 由此推得。椅子不擋路也不擋視線，行人反應見 Human.chairSlowdown／chairTieBreak／chairSeating 與 Tourist.chairBonus。沒有屬性讓規則分岔",
+     "desc": "椅子是否擺出看時間與店鋪營業狀態：當天時刻在 [CHAIR_START_HOUR, CHAIR_END_HOUR)（小時）且該店有營業 → 走道格 occupiedBy（QGIS 標定清單）裡這家店有一張椅子；時段外或沒營業 → 沒有。「營業」＝店鋪狀態 new 或 old；blank 與 Vendor (Idle) 不擺；店鋪以位置 code 為準，搬遷只交換狀態不改 code。不寫入任何狀態：椅子狀態與座位數由時間＋營業狀態＋occupiedBy 當下算出，沒有重設或收椅處理。daySec＝當天第幾秒（程式的 Cell.daySec），由呼叫端傳入。mobility 由此推得。椅子不擋路也不擋視線，行人反應見 Human.chairSlowdown／chairTieBreak／chairSeating 與 Tourist.chairBonus。沒有屬性讓規則分岔",
      "params": {
-      "CHAIR_START_BEAT": {
-       "value": 16,
-       "unit": "beat",
-       "note": "一天 DAY_LENGTH_BEATS＝96 個 beat 內，擺椅起點，全域一組"
+      "CHAIR_START_HOUR": {
+       "value": 4,
+       "unit": "hour",
+       "note": "擺椅起點 04:00，全域一組"
       },
-      "CHAIR_END_BEAT": {
-       "value": 80,
-       "unit": "beat",
-       "note": "擺椅終點（不含），全域一組"
+      "CHAIR_END_HOUR": {
+       "value": 20,
+       "unit": "hour",
+       "note": "擺椅終點 20:00（不含），全域一組"
       }
      },
      "reads": [
       "ERA_DATA.cells[r,c].occupiedBy",
-      "dayBeat",
+      "daySec",
       "shop.state"
      ],
      "source": "2026-10-02 課堂筆記（佔據一定跟空間有關，一條一條加反應規則）",
@@ -652,7 +652,7 @@ const CONFIG = {
        "when": "擺椅時段內，occupiedBy 裡至少有一家有營業的店",
        "effect": [
         "passableFor 照走道處理，行人照常通過",
-        "Human.chairSlowdown：行人走進去多停 CHAIR_SLOW_BEATS",
+        "Human.chairSlowdown：行人走進去多停 CHAIR_SLOW_SEC",
         "Human.chairTieBreak：距離一樣近時優先走沒椅子的格子"
        ]
       }
