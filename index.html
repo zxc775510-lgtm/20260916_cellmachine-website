@@ -75,9 +75,7 @@
         <div class="legend-item"><span class="sw" style="background:#c6f6d5"></span><span class="lbl">入口</span></div>
         <div class="legend-item"><span class="glyph">▲</span><span class="lbl">遊客</span></div>
         <div class="legend-item"><span class="glyph">●</span><span class="lbl">居民</span></div>
-        <div class="legend-item"><span class="sw" style="background:#4a4020"></span><span class="lbl">動線密度 低</span></div>
-        <div class="legend-item"><span class="sw" style="background:#a68a3c"></span><span class="lbl">動線密度 中</span></div>
-        <div class="legend-item"><span class="sw" style="background:#f6e05e"></span><span class="lbl">動線密度 高</span></div>
+        <div class="legend-item"><span id="trailLegend" style="display:flex;width:44px;flex-shrink:0;"></span><span class="lbl">動線密度 低→高</span></div>
       </div>
 
       <h2 style="margin-top:26px;">圖例 — BLOCK</h2>
@@ -232,9 +230,8 @@ const OLD_FIXED_CODES = ['L', 'K', 'P', 'A-2']; // X 已於 2026-09-24 QGIS 改�
 const SEC_PER_HOUR = 3600;
 const SEC_PER_DAY = 24 * SEC_PER_HOUR;
 const SEC_PER_TICK = 182.5 * SEC_PER_DAY; // tick＝半年，管攤位生存規則
-const MAX_TICKS = 10;            // 時間軸總長 5 年 ÷ 0.5年/tick＝10；跑到這裡自動停止，不再前進（改 MAX_TICKS 即可調長度）
-const SIM_YEARS = MAX_TICKS / 2;
-const MICRO_MAX_RATE = 30;       // 播放倍率（模擬秒/真實秒）≤此值＝微觀（逐步走），超過＝宏觀（每小時取樣放大）
+const SIM_MONTHS = 1;            // 時間軸總長（月）；跑到 SIM_END_SEC 自動停止，不再前進（改 SIM_MONTHS 即可調長度）
+const MICRO_MAX_RATE = 50;       // 播放倍率（模擬秒/真實秒）≤此值＝微觀（逐步走），超過＝宏觀（每小時取樣放大）
 const MAX_RATE = 3e6;            // 拉桿最高倍率（約 1 個月/秒）
 const MACRO_SAMPLE_N = 8;        // 宏觀：每種狀況每類行人真的走 n 位取樣（可調，見 macroHour）
 const MACRO_BUDGET_MS = 12;      // 宏觀：每幀最多花多少 ms 推進，超過就放慢（避免卡死）
@@ -251,7 +248,9 @@ let heatW = 1, visitW = VISIT_NORM;
 const MAX_PEDESTRIANS = 260;
 const TRAIL_STEP_ADD = 1;        // 不衰減、不歸零：拿掉 TRAIL_DECAY，軌跡永久累加
 
-const SIM_START_YEAR = 2026, SIM_START_MONTH = 8; // 時間軸起點 2026/08，終點=起點+SIM_YEARS 年
+const SIM_START_YEAR = 2026, SIM_START_MONTH = 8; // 時間軸起點 2026/08/01
+const SIM_END_DATE = new Date(Date.UTC(SIM_START_YEAR, SIM_START_MONTH - 1 + SIM_MONTHS, 1)); // 終點＝起點+SIM_MONTHS 個月
+const SIM_END_SEC = (SIM_END_DATE - Date.UTC(SIM_START_YEAR, SIM_START_MONTH - 1, 1)) / 1000; // 日曆月份天數（8月＝31天）
 
 // 店鋪狀態配色（黑底版面，見使用者附件參考圖）：new/old 用鮮色，unused 用暗色，blank 幾乎融入底色。
 const STALL_COLOR = {
@@ -268,14 +267,15 @@ const NEW_TYPE_COLOR = {
   building: '#e2e8f0', sidewalk: '#a0aec0', road: '#718096', block: '#2d3748', outside: '#000000',
   crosswalk: '#d4af37', bus_stop: '#00b5d8', light_rail_track: '#9f1239', light_rail_entrance: '#c6f6d5',
 };
-// 動線熱力離散三級色階（不是漸層/透明度）：低 1–9 次、中 10–24 次、高 25 次以上。
-const RESIDENT_TRAIL_TIERS = { low: '#bee3f8', mid: '#3182ce', high: '#2a4365' };
+// 動線熱力離散七級色階（不是漸層/透明度）：門檻 TRAIL_THRESHOLDS 每級加倍（1/2/4/8/16/32/64 次），累積越多顏色越往下一級走；色階陣列由低到高。
+const TRAIL_THRESHOLDS = [1, 2, 4, 8, 16, 32, 64];
+const RESIDENT_TRAIL_TIERS = ['#ebf8ff', '#bee3f8', '#90cdf4', '#63b3ed', '#3182ce', '#2c5282', '#2a4365'];
 // 畫面一：不分客群，兩種熱力合計算一個強度，單一金色系三級深淺（使用者需求(1)：發散軌跡呈現深淺，不分客群）。
-const PANEL1_TRAIL_TIERS = { low: '#4a4020', mid: '#a68a3c', high: '#f6e05e' };
+const PANEL1_TRAIL_TIERS = ['#3a3318', '#54481f', '#6f5d26', '#8c7530', '#a68a3c', '#d4b84a', '#f6e05e'];
 // 畫面二（軌跡總覽）用紅色系取代橘色系跟畫面一區隔，居民沿用同一組藍色系（RESIDENT_TRAIL_TIERS）。
-const PANEL2_TOURIST_TRAIL_TIERS = { low: '#fecaca', mid: '#e53e3e', high: '#7f1d1d' };
-// 畫面二「重疊」模式：紫色系三級，門檻套用同一組 trailTier()，依 tH+rH（兩種人潮的合計走過次數）分級。
-const OVERLAP_TRAIL_TIERS = { low: '#c4b5fd', mid: '#6b46c1', high: '#3b0764' };
+const PANEL2_TOURIST_TRAIL_TIERS = ['#fff5f5', '#fed7d7', '#feb2b2', '#fc8181', '#e53e3e', '#c53030', '#7f1d1d'];
+// 畫面二「重疊」模式：紫色系七級，門檻套用同一組 trailTier()，依 tH+rH（兩種人潮的合計走過次數）分級。
+const OVERLAP_TRAIL_TIERS = ['#faf5ff', '#e9d8fd', '#d6bcfa', '#b794f4', '#805ad5', '#553c9a', '#3b0764'];
 
 // ISO（2.5D 等角展示，20260914 使用者追加需求）：
 // - 範圍＝市場所在街廓＋離它最近的4個街廓（見 findCityBlocks/computeIsoScope），可拖曳/滾輪縮放。
@@ -849,7 +849,7 @@ function resetSimulation() {
 // 6. 主迴圈：時鐘 simSec（秒）→ 午夜 endOfDay、每半年 stepTick（狀態轉換）。
 //    推進方式依播放倍率 params.rate 分兩種：微觀（逐秒走）／宏觀（每小時取樣放大），見 advanceSim()。
 // ============================================================
-function runDone() { return tick >= MAX_TICKS; }
+function runDone() { return simSec >= SIM_END_SEC; }
 
 // 每個真實幀呼叫一次：把 realSec 真實秒換成模擬秒（simDebt 累積，不足 1 秒的留到下一幀）。
 function advanceSim(realSec) {
@@ -914,10 +914,14 @@ function walkProfile(C) {
 // 推進模擬時鐘 dt 秒：跨午夜 → endOfDay；跨半年 → stepTick；同步 Cell.daySec（Chair Rule 的時刻，呼叫端傳入）。
 function advanceClock(dt) {
   const day0 = Math.floor(simSec / SEC_PER_DAY);
-  simSec = Math.min(simSec + dt, MAX_TICKS * SEC_PER_TICK);
+  simSec = Math.min(simSec + dt, SIM_END_SEC);
   if (Math.floor(simSec / SEC_PER_DAY) > day0) endOfDay();
-  while (!runDone() && simSec >= (tick + 1) * SEC_PER_TICK) stepTick();
+  while (simSec >= (tick + 1) * SEC_PER_TICK) stepTick(); // 半年一次；SIM_MONTHS 不滿半年就一次都不會觸發
   Cell.daySec = simSec % SEC_PER_DAY;
+  if (runDone()) {
+    playing = false; // 自動停止，不用使用者手動暫停
+    captureRunSnapshot(); // 使用者需求：跑完一次模擬，留一張畫面三的快照（呼叫端都擋 runDone()，只會進來一次）
+  }
 }
 
 function stepTick() {
@@ -925,10 +929,6 @@ function stepTick() {
   VendorNew.stepTick();
   VendorIdle.stepTick();
   tick++;
-  if (tick >= MAX_TICKS) {
-    playing = false; // 自動停止，不用使用者手動暫停
-    captureRunSnapshot(); // 使用者需求：跑完一次模擬，留一張畫面三的快照
-  }
 }
 
 // 畫面三快照：只存 aisle 格子的合計熱度（跟畫面一同一份 touristTrailHeat+residentTrailHeat），
@@ -987,12 +987,11 @@ function spawnPedestriansContinuous() {
 // ============================================================
 // 7. 繪圖（p5.js，白色版面）
 // ============================================================
-// 離散三級色階：低1–9次／中10–24次／高25次以上，不做漸層或透明度過渡。
+// 離散七級色階：依 TRAIL_THRESHOLDS（1/2/4/8/16/32/64 次）分級，不做漸層或透明度過渡；沒走過回 null。
 function trailTier(heat, tiers) {
-  if (heat >= 25) return tiers.high;
-  if (heat >= 10) return tiers.mid;
-  if (heat >= 1) return tiers.low;
-  return null;
+  let i = -1;
+  while (i + 1 < TRAIL_THRESHOLDS.length && heat >= TRAIL_THRESHOLDS[i + 1]) i++;
+  return i < 0 ? null : tiers[i];
 }
 
 // 同一編號（同一家店鋪）的真實範圍：3pt 白色虛線框，蓋在格子上面。座標永遠是矩形（本圖每個編號
@@ -1951,11 +1950,11 @@ function simClockLabel() {
   return `${d.getUTCFullYear()}/${p(d.getUTCMonth() + 1)}/${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
 }
 
-// 使用者需求(4)：兩張圖之間的時間軸進度條，2026/08 起、tick=0.5年，MAX_TICKS 跑完＝起點+SIM_YEARS 年。
+// 使用者需求(4)：兩張圖之間的時間軸進度條，2026/08 起、tick=0.5年，跑到 SIM_END_SEC 為止。
 function drawTimeline() {
   const x0 = OFFSET_X, x1 = OFFSET_X + VIEW_W;
   const barY = TIMELINE_Y0 + 16, barH = 6;
-  const pct = Math.min(1, simSec / (MAX_TICKS * SEC_PER_TICK));
+  const pct = Math.min(1, simSec / SIM_END_SEC);
   const label = simClockLabel();
 
   noStroke(); fill(255);
@@ -1968,13 +1967,13 @@ function drawTimeline() {
   fill('#718096'); textSize(9); textAlign(LEFT, TOP);
   text('2026/08', x0, barY + barH + 4);
   textAlign(RIGHT, TOP);
-  text(`${SIM_START_YEAR + SIM_YEARS}/${String(SIM_START_MONTH).padStart(2, '0')}`, x1, barY + barH + 4);
+  text(`${SIM_END_DATE.getUTCFullYear()}/${String(SIM_END_DATE.getUTCMonth() + 1).padStart(2, '0')}/01`, x1, barY + barH + 4);
 }
 
 // 畫面二：只有格子（牆/設施/入口維持map結構色，方便定位）＋只顯示軌跡——不畫攤位營業狀態、不畫行人。
 // stallslot（店鋪範圍）一律不顯示軌跡，只留結構色——即使行人有走進去逛過也不算（軌跡只代表走道動線）。
 // params.trailView（UI 下拉，三選一）決定畫哪一種：
-//   'tourist'／'resident'：只畫該人潮的離散三級色階（PANEL2_TOURIST_TRAIL_TIERS／RESIDENT_TRAIL_TIERS）。
+//   'tourist'／'resident'：只畫該人潮的離散七級色階（PANEL2_TOURIST_TRAIL_TIERS／RESIDENT_TRAIL_TIERS）。
 //   'overlap'：只畫兩種人潮都走過的格子，用 OVERLAP_TRAIL_TIERS 依 tH+rH 合計次數分三級深淺；沒重疊的格子跟沒軌跡一樣是深色底。
 // 走道格子填滿整格，同色階的相鄰格子會直接連成一片色塊，像基因圖的連續色帶（使用者需求）。
 // 2026-09-14：只跑 overviewCamera 看得到的範圍，且只在 panel2Dirty 時重畫一次到離線畫布存起來
@@ -2141,7 +2140,7 @@ function bindUI() {
   const eraAttribute = document.getElementById('eraAttribute');
 
   btnPlay.addEventListener('click', () => {
-    if (tick >= MAX_TICKS) return; // 已跑完模擬，開始鍵不再有作用
+    if (runDone()) return; // 已跑完模擬，開始鍵不再有作用
     playing = !playing;
   });
   btnReset.addEventListener('click', () => {
@@ -2151,11 +2150,12 @@ function bindUI() {
   const speedLabel = document.getElementById('speedLabel');
   const applySpeed = () => {
     params.rate = Math.min(MAX_RATE, Math.pow(10, Number(speed.value) / 100));
+    if (Math.abs(params.rate - MICRO_MAX_RATE) < 1) params.rate = MICRO_MAX_RATE; // 拉桿格點剛好落在上限附近時吸附到上限，讓 50× 選得到
     const r = params.rate, perMin = r * 60; // 真實 1 分鐘 = 模擬 perMin 秒
     const unit = perMin < 3600 ? [60, '分鐘'] : perMin < 86400 ? [3600, '小時'] : perMin < 86400 * 30 ? [86400, '天'] : [86400 * 30, '個月'];
-    const total = Math.max(1, Math.round(MAX_TICKS * SEC_PER_TICK / perMin)); // 跑完整個模擬需要的真實分鐘數
+    const total = Math.max(1, Math.round(SIM_END_SEC / perMin)); // 跑完整個模擬需要的真實分鐘數
     speedLabel.textContent = (r <= MICRO_MAX_RATE ? '微觀（逐步走）' : '宏觀（每小時取樣）')
-      + '　1 分鐘＝模擬 ' + (perMin / unit[0]).toFixed(1) + ' ' + unit[1] + '　跑完 ' + SIM_YEARS + ' 年約 ' + total.toLocaleString() + ' 分鐘';
+      + '　1 分鐘＝模擬 ' + (perMin / unit[0]).toFixed(1) + ' ' + unit[1] + '　跑完 ' + SIM_MONTHS + ' 個月約 ' + total.toLocaleString() + ' 分鐘';
   };
   speed.addEventListener('input', applySpeed);
   applySpeed();
@@ -2168,6 +2168,7 @@ function bindUI() {
   // params，這裡只要更新 params/圖例，不用額外的 dirty 旗標。
   eraYear.addEventListener('change', () => { params.eraYear = eraYear.value; });
   eraAttribute.addEventListener('change', () => { params.eraAttribute = eraAttribute.value; updateEraLegend(); });
+  document.getElementById('trailLegend').innerHTML = PANEL1_TRAIL_TIERS.map(c => `<span style="flex:1;height:13px;background:${c}"></span>`).join('');
   updateEraLegend(); // 開場先跑一次（年代對照預設開啟）
 }
 
@@ -2177,19 +2178,18 @@ function updateStatsDisplay() {
   document.getElementById('simTime').textContent = clkTime;
   const counts = { old: 0, new: 0, old_unused: 0, new_unused: 0, blank: 0 };
   World.shops.forEach(s => counts[s.state]++);
-  const years = (simSec / (SEC_PER_TICK * 2)).toFixed(2);
   const survivalRate = (counts.new + counts.new_unused) > 0
     ? (100 * counts.new / (counts.new + counts.new_unused)).toFixed(1) : '—';
   const idleRate = (100 * (counts.old_unused + counts.new_unused) / N_STALLS).toFixed(1);
   const t = Tourist.pedestrians.length;
   const r = Resident.pedestrians.length;
-  const finished = tick >= MAX_TICKS;
+  const finished = runDone();
 
   const btnPlay = document.getElementById('btnPlay');
-  btnPlay.textContent = finished ? `■ 已跑完${SIM_YEARS}年` : (playing ? '⏸ 暫停' : '▶ 開始');
+  btnPlay.textContent = finished ? `■ 已跑完${SIM_MONTHS}個月` : (playing ? '⏸ 暫停' : '▶ 開始');
 
   document.getElementById('stats').innerHTML = `
-    <div class="stat-line"><span>Tick / 年數（上限 ${MAX_TICKS} / ${SIM_YEARS}年）</span><b>${tick} / ${years}年${finished ? ' ✅' : ''}</b></div>
+    <div class="stat-line"><span>Tick（半年一次）／模擬進度</span><b>${tick} / ${(100 * simSec / SIM_END_SEC).toFixed(0)}%${finished ? ' ✅' : ''}</b></div>
     <div class="stat-line"><span>模擬時間　第 ${dayCounter} 天</span><b>${simClockLabel()}</b></div>
     <div class="stat-line"><span>擺椅 ${Cell.chairsOut() ? '✅' : '—'}　用餐 ${Cell.isMealTime() ? '🍴' : '—'}</span><b>${params.rate <= MICRO_MAX_RATE ? '微觀' : '宏觀'}</b></div>
     <div class="stat-line"><span>椅子數 / 坐著的人</span><b>${World.chairCells.reduce((n, a) => n + Cell.chairCount(a.row, a.col), 0)} / ${World.shops.reduce((n, s) => n + s.seatsTaken, 0)}</b></div>
