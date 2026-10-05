@@ -75,7 +75,7 @@
         <div class="legend-item"><span class="sw" style="background:#c6f6d5"></span><span class="lbl">入口</span></div>
         <div class="legend-item"><span class="glyph">▲</span><span class="lbl">遊客</span></div>
         <div class="legend-item"><span class="glyph">●</span><span class="lbl">居民</span></div>
-        <div class="legend-item"><span id="trailLegend" style="display:flex;width:44px;flex-shrink:0;"></span><span class="lbl">動線密度 低→高</span></div>
+        <div class="legend-item" style="grid-column:span 2;"><span id="trailLegend" style="display:block;width:88px;height:13px;flex-shrink:0;"></span><span class="lbl" id="trailLegendText">動線密度 低→高</span></div>
       </div>
 
       <h2 style="margin-top:26px;">圖例 — BLOCK</h2>
@@ -91,21 +91,11 @@
       </div>
 
       <h2 style="margin-top:26px;">軌跡總覽</h2>
-      <div class="legend-group">
-        <div class="legend-item"><span class="sw" style="background:#fecaca"></span><span class="lbl">遊客軌跡 低</span></div>
-        <div class="legend-item"><span class="sw" style="background:#e53e3e"></span><span class="lbl">遊客軌跡 中</span></div>
-        <div class="legend-item"><span class="sw" style="background:#7f1d1d"></span><span class="lbl">遊客軌跡 高</span></div>
-        <div class="legend-item"><span class="sw" style="background:#bee3f8"></span><span class="lbl">居民軌跡 低</span></div>
-        <div class="legend-item"><span class="sw" style="background:#3182ce"></span><span class="lbl">居民軌跡 中</span></div>
-        <div class="legend-item"><span class="sw" style="background:#2a4365"></span><span class="lbl">居民軌跡 高</span></div>
-        <div class="legend-item"><span class="sw" style="background:#c4b5fd"></span><span class="lbl">重疊 低</span></div>
-        <div class="legend-item"><span class="sw" style="background:#6b46c1"></span><span class="lbl">重疊 中</span></div>
-        <div class="legend-item"><span class="sw" style="background:#3b0764"></span><span class="lbl">重疊 高</span></div>
-      </div>
+      <div class="legend-group" id="trailRampLegend"></div>
 
       <h2 style="margin-top:26px;">歷史軌跡快照</h2>
       <div class="legend-group">
-        <div class="legend-item"><span class="sw" style="background:#a68a3c"></span><span class="lbl">依序排列，每跑完一次模擬留一張</span></div>
+        <div class="legend-item" style="grid-column:span 3;"><span class="sw" id="snapRampLegend"></span><span class="lbl">依序排列，每跑完一次模擬留一張（各張自己正規化，低→高）</span></div>
       </div>
     </div>
   </div>
@@ -121,7 +111,9 @@
       <button id="btnReset">↺ 重設</button>
     </div>
     <label class="note">播放速度（對數）</label>
-    <input type="range" id="speed" min="0" max="650" step="5" value="140">
+    <input type="range" id="speed" min="0" max="650" step="1" value="140" list="speedNodes">
+    <datalist id="speedNodes"></datalist>
+    <div class="row" id="speedPresets" style="margin:6px 0 0;"></div>
     <div class="note" id="speedLabel"></div>
     </div>
 
@@ -131,8 +123,9 @@
     <div class="note" id="trafficMultLabel">1.0×（預設）</div>
     </div>
 
-    <div class="card"><h3>軌跡篩選（畫面二）</h3>
+    <div class="card"><h3>軌跡篩選（畫面一、二）</h3>
     <select id="trailView">
+      <option value="all">全部軌跡（遊客＋居民）</option>
       <option value="tourist">遊客軌跡</option>
       <option value="resident">居民軌跡</option>
       <option value="overlap">重疊</option>
@@ -230,10 +223,11 @@ const OLD_FIXED_CODES = ['L', 'K', 'P', 'A-2']; // X 已於 2026-09-24 QGIS 改�
 const SEC_PER_HOUR = 3600;
 const SEC_PER_DAY = 24 * SEC_PER_HOUR;
 const SEC_PER_TICK = 182.5 * SEC_PER_DAY; // tick＝半年，管攤位生存規則
-const SIM_DAYS = 7;              // 時間軸總長（天）；跑到 SIM_END_SEC 自動停止，不再前進（改 SIM_DAYS 即可調長度）
-const MICRO_MAX_RATE = 100;       // 播放倍率（模擬秒/真實秒）≤此值＝微觀（逐步走），超過＝宏觀（每小時取樣放大）
+const SIM_DAYS = 1;              // 時間軸總長（天）；跑到 SIM_END_SEC 自動停止，不再前進（改 SIM_DAYS 即可調長度）
+const MICRO_MAX_RATE = 3600;       // 播放倍率（模擬秒/真實秒）≤此值＝微觀（逐步走），超過＝宏觀（每小時取樣放大）
 const MAX_RATE = 3e6;            // 拉桿最高倍率（約 1 個月/秒）
 const MACRO_SAMPLE_N = 8;        // 宏觀：每種狀況每類行人真的走 n 位取樣（可調，見 macroHour）
+const MICRO_BUDGET_MS = 30;      // 微觀：每幀最多花多少 ms 逐步推進，超過就放慢（高倍率時實際速度會低於拉桿值）
 const MACRO_BUDGET_MS = 12;      // 宏觀：每幀最多花多少 ms 推進，超過就放慢（避免卡死）
 // 行人生成：每家營業中的興趣目標店鋪每小時來客數（Tourist 看 new 店數、Resident 看 old 店數），可調；時段內均勻，沒有時段曲線。
 const ARRIVALS_PER_SHOP_HOUR = 5;
@@ -242,7 +236,7 @@ const ARRIVALS_PER_SHOP_HOUR = 5;
 const OLD_ARRIVALS_PER_SHOP_TICK = 0.3;
 const VISIT_NORM = OLD_ARRIVALS_PER_SHOP_TICK / (ARRIVALS_PER_SHOP_HOUR * SEC_PER_TICK / SEC_PER_HOUR);
 // 行人這一步算多少熱度／到訪：微觀 heatW=1（看得到軌跡）、visitW=VISIT_NORM；宏觀取樣時兩者都暫設 1（見 walkProfile）。agents/*.js 讀這兩個。
-// 軌跡熱度的門檻（trailTier 1/10/25）是照舊版「行人最少走 48 步才離場」定的；現在離場是 GIVEUP_SEC 步，宏觀熱度再乘 48/GIVEUP_SEC 換回舊量級。
+// 軌跡熱度的量級（Vendor 人氣門檻等）是照舊版「行人最少走 48 步才離場」定的；現在離場是 GIVEUP_SEC 步，宏觀熱度再乘 48/GIVEUP_SEC 換回舊量級。
 const HEAT_STEP_NORM = 48 / CONFIG.params.GIVEUP_SEC;
 let heatW = 1, visitW = VISIT_NORM;
 const MAX_PEDESTRIANS = 260;
@@ -267,15 +261,21 @@ const NEW_TYPE_COLOR = {
   building: '#e2e8f0', sidewalk: '#a0aec0', road: '#718096', block: '#2d3748', outside: '#000000',
   crosswalk: '#d4af37', bus_stop: '#00b5d8', light_rail_track: '#9f1239', light_rail_entrance: '#c6f6d5',
 };
-// 動線熱力離散七級色階（不是漸層/透明度）：門檻 TRAIL_THRESHOLDS 每級加倍（1/2/4/8/16/32/64 次），累積越多顏色越往下一級走；色階陣列由低到高。
-const TRAIL_THRESHOLDS = [1, 2, 4, 8, 16, 32, 64];
-const RESIDENT_TRAIL_TIERS = ['#ebf8ff', '#bee3f8', '#90cdf4', '#63b3ed', '#3182ce', '#2c5282', '#2a4365'];
-// 畫面一：不分客群，兩種熱力合計算一個強度，單一金色系三級深淺（使用者需求(1)：發散軌跡呈現深淺，不分客群）。
-const PANEL1_TRAIL_TIERS = ['#3a3318', '#54481f', '#6f5d26', '#8c7530', '#a68a3c', '#d4b84a', '#f6e05e'];
-// 畫面二（軌跡總覽）用紅色系取代橘色系跟畫面一區隔，居民沿用同一組藍色系（RESIDENT_TRAIL_TIERS）。
-const PANEL2_TOURIST_TRAIL_TIERS = ['#fff5f5', '#fed7d7', '#feb2b2', '#fc8181', '#e53e3e', '#c53030', '#7f1d1d'];
-// 畫面二「重疊」模式：紫色系七級，門檻套用同一組 trailTier()，依 tH+rH（兩種人潮的合計走過次數）分級。
-const OVERLAP_TRAIL_TIERS = ['#faf5ff', '#e9d8fd', '#d6bcfa', '#b794f4', '#805ad5', '#553c9a', '#3b0764'];
+// 動線熱力連續色階：每種顯示模式一條多段色帶（低→高，亮度遞增，暗底上最低也看得到、最高最亮），插值成 256 格查表。
+// 熱度先正規化到目前資料的 [最低, 最高]（只算走道格、有軌跡的），再取對數（熱度長尾分佈，線性會讓大部分格子擠在最暗端）。
+function makeRamp(stops) {
+  const rgb = stops.map(h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)));
+  return Array.from({ length: 256 }, (_, k) => {
+    const x = k / 255 * (rgb.length - 1), i = Math.min(Math.floor(x), rgb.length - 2), f = x - i;
+    return '#' + [0, 1, 2].map(j => Math.round(rgb[i][j] + (rgb[i + 1][j] - rgb[i][j]) * f).toString(16).padStart(2, '0')).join('');
+  });
+}
+const TRAIL_RAMP = {
+  all:      makeRamp(['#2b1a5e', '#7b2a8e', '#c93d6a', '#f08a2f', '#fbe34d']), // 全部（遊客＋居民合計）：紫→洋紅→橘→黃
+  tourist:  makeRamp(['#3b1212', '#8b1e1e', '#e53e3e', '#fc8181', '#fff5f5']), // 遊客：暗紅→亮粉
+  resident: makeRamp(['#10253f', '#1e5a99', '#3182ce', '#90cdf4', '#ebf8ff']), // 居民：暗藍→亮藍
+  overlap:  makeRamp(['#2a1055', '#6b46c1', '#b794f4', '#e9d8fd', '#ffffff']), // 重疊：暗紫→白
+};
 
 // ISO（2.5D 等角展示，20260914 使用者追加需求）：
 // - 範圍＝市場所在街廓＋離它最近的4個街廓（見 findCityBlocks/computeIsoScope），可拖曳/滾輪縮放。
@@ -304,13 +304,12 @@ const ISO_U_MIN = 2, ISO_U_MAX = 40; // 縮放(每公尺像素數)上下限
 // ============================================================
 const World = { DIRS4: [[-1, 0], [1, 0], [0, -1], [0, 1]] };
 
-// 2026-09-14：地圖擴大到整個研究範圍後新增的型別（見 adapter_market_to_website.py／
-// cellmachine-grid-staging-workflow 記憶的 CODE_MAP）——building/block/outside/light_rail_track
-// 是實體擋路或範圍外，不可通行；road/sidewalk/crosswalk/bus_stop/light_rail_entrance 可通行。
-const IMPASSABLE_TYPES = new Set(['wall', 'facility', 'building', 'block', 'outside', 'light_rail_track']);
+// 行人只能待在市場內：走道（含用餐區，用餐區是走道／店鋪格上的 zone 標記，不是獨立格型）、入口、店鋪格。
+// 其餘（馬路、人行道、斑馬線、牆、設施…）一律不可通行；stallslot 的例外（只有興趣目標狀態的店才進得去）在各 agent 的 passableFor()。
+World.WALKABLE_TYPES = new Set(['aisle', 'entry', 'stallslot']);
 World.passable = function (r, c) {
   if (r < 0 || r >= World.ROWS || c < 0 || c >= World.COLS) return false;
-  return !IMPASSABLE_TYPES.has(World.cellType[r][c]);
+  return World.WALKABLE_TYPES.has(World.cellType[r][c]);
 };
 World.makeField = function (v) {
   const f = [];
@@ -430,6 +429,7 @@ function parseGridData() {
   World.cellType = cellType; World.entryCells = entryCells;
   World.stalls = stalls; World.stallAtRC = stallAtRC;
   World.aisleCells = aisleCells;
+  World.trailCells = aisleCells.concat(entryCells.map(e => ({ row: e.r, col: e.c }))); // 會有軌跡的格子（走道＋入口），軌跡範圍與繪圖只看這份
 }
 
 // 使用者需求(1)：同一個 code（編號）＝同一家店鋪，跨多格；狀態/顏色/生存判定都記在店鋪上（World.shops），
@@ -448,9 +448,11 @@ function computeStallGroups() {
   World.shops = Object.values(groups);
   World.shopByCode = groups; // Chair Rule：occupiedBy 存店鋪 code，用這個反查店鋪狀態
   World.cellSpace = Cell.buildCellSpace(); // Space Class 陣列（ROWS×COLS），見 agent_setting.md「Space Class」
-  World.shops.forEach(s => { s.corridorFrontage = Cell.shopFrontage(s); s.seatsTaken = 0; s.chairCells = 0; }); // Cell Attribute 彙總，固定值，設定時算一次
+  Cell.buildVisibility(); // 攤位格 visibility（0~1），見 agent_setting.md「Visibility Attribute」
+  World.shops.forEach(s => { s.corridorFrontage = Cell.shopFrontage(s); s.visibility = Cell.shopVisibility(s); s.seatsTaken = 0; s.chairCells = 0; }); // Cell Attribute 彙總，固定值，設定時算一次
   // 椅子：QGIS 標定有 occupiedBy 的走道格（固定）；店鋪的 chairCells＝標到它的格數（座位數上限，營業且擺椅時段內才算，見 Cell.seatsOf）
-  World.chairCells = World.aisleCells.filter(a => World.cellSpace[a.row][a.col].occupiedBy.length);
+  // 攤位自己的用餐區格也有椅子（occupiedBy＝自己），一起算。
+  World.chairCells = World.aisleCells.concat(World.stalls).filter(a => World.cellSpace[a.row][a.col].occupiedBy.length);
   World.chairCells.forEach(a => World.cellSpace[a.row][a.col].occupiedBy.forEach(code => { if (groups[code]) groups[code].chairCells++; }));
   N_STALLS = World.shops.length;           // 33 家店鋪（不是162格）
 }
@@ -468,7 +470,7 @@ let runSnapshots = []; // 畫面三：每跑完一次模擬留一張當下的動
 let panel2Cache = null, panel2Dirty = true;
 let tick = 0, simSec = 0, dayCounter = 0, simDebt = 0; // simSec：模擬時鐘（秒，自 2026/08/01 00:00 起）；simDebt：還沒推進的模擬秒
 let playing = false;
-let params = { rate: 1, trafficMult: 1.0, trailView: 'tourist', activeEventId: 'none', showTrail: true, showCatchment: true, showEraOverlay: true, eraYear: '2026', eraAttribute: 'zone', showEraShopModel: true }; // showEraShopModel：2026-10-01 開關移除、固定開啟
+let params = { rate: 1, trafficMult: 1.0, trailView: 'all', activeEventId: 'none', showTrail: true, showCatchment: true, showEraOverlay: true, eraYear: '2026', eraAttribute: 'zone', showEraShopModel: true }; // showEraShopModel：2026-10-01 開關移除、固定開啟
 
 // 1km 生活圈圈：直徑1000m半透明白圈，中心＝市場bbox中心。99_Grid 格子＝真實1m（adapter_market_to_website.py
 // 頭注「QGIS 1m grid」，經 QGIS 相鄰格中心點距離量測驗證），半徑500m直接等於500格，不用另外換算。
@@ -787,14 +789,17 @@ function drawCellTooltip() {
 function draw() {
   if (playing) advanceSim(Math.min(deltaTime, 100) / 1000); // 切回分頁時 deltaTime 很大，夾住免得一次跳很遠
   updateIsoCameraDrag();
+  trailRange = computeTrailRange((r, c) => trailValue(r, c)); // 本幀的最低／最高，畫面一、二共用
   background(0);
 
   // 畫面一：原本的模擬器（攤位營業狀態＋行人）。20260914：拿掉狀態數量隨時間變化的折線圖（drawChart）。
   withGridClip(OFFSET_Y, () => {
     drawGrid();
     drawClosedShops();
-    drawChairs();
     drawStallGroupOutlines(OFFSET_Y);
+    drawTrailOverlay();
+    drawChairs(); // 椅子畫在軌跡上面
+    drawStallExtentOutlines();
     Tourist.draw(window);
     Resident.draw(window);
     drawCatchmentCircle();
@@ -855,7 +860,11 @@ function runDone() { return simSec >= SIM_END_SEC; }
 function advanceSim(realSec) {
   simDebt += params.rate * realSec;
   if (params.rate <= MICRO_MAX_RATE) {
-    while (simDebt >= 1 && !runDone()) { microStep(); simDebt -= 1; }
+    const t0 = performance.now();
+    while (simDebt >= 1 && !runDone()) {
+      microStep(); simDebt -= 1;
+      if (performance.now() - t0 > MICRO_BUDGET_MS) { simDebt = 0; break; } // 太快算不完：放慢，不累積欠的步數
+    }
     return;
   }
   // 宏觀：行人不逐步走，場上的先清掉（座位一併歸還）；每小時取樣一次，超過時間預算就放慢（吃掉多餘的 simDebt）。
@@ -872,20 +881,21 @@ function advanceSim(realSec) {
 function microStep() {
   heatW = 1; visitW = VISIT_NORM;
   spawnPedestriansContinuous();
+  Cell.refreshDensity(); // Crowd Rule：這一步開頭的人數分布
   Tourist.move(touristTrailHeat);
   Resident.move(residentTrailHeat);
   panel2Dirty = true; // trailHeat 剛剛變了，畫面二快取要跟著重畫（見 panel2Cache 宣告處）
   advanceClock(1);
 }
 
-// 宏觀：1 模擬小時，不逐步走行人。同一 tick（店鋪狀態不變）、同一種時段（有無椅子／是否用餐時間）的行人走法是一樣的，
+// 宏觀：1 模擬小時，不逐步走行人。同一 tick（店鋪狀態不變）、同一種時段（有無椅子）的行人走法是一樣的，
 // 所以每種「狀況」只真的走一次（MACRO_SAMPLE_N 位，walkProfile 取樣成每位行人的平均熱度／到訪，快取到 profileCache），
 // 之後每小時把這份平均乘以該小時預期來客 N 位（再乘 VISIT_NORM 歸一）加進熱度與到訪。
 // ponytail: 取樣期間時鐘凍結、同一狀況內每小時共用同一份取樣（雜訊固定），要更平滑就加大 MACRO_SAMPLE_N。
 let profileCache = {};
 function macroHour() {
   Cell.daySec = simSec % SEC_PER_DAY;
-  const key = tick + '|' + (Cell.chairsOut() ? 1 : 0) + (Cell.isMealTime() ? 1 : 0);
+  const key = tick + '|' + (Cell.chairsOut() ? 1 : 0);
   const prof = profileCache[key] || (profileCache[key] = {});
   const [nT, nR] = hourlyArrivals();
   [['T', Tourist, nT, touristTrailHeat], ['R', Resident, nR, residentTrailHeat]].forEach(([k, C, N, heat]) => {
@@ -902,6 +912,7 @@ function macroHour() {
 function walkProfile(C) {
   const n = MACRO_SAMPLE_N, field = World.makeField(0), before = World.shops.map(s => s._visitTick || 0);
   heatW = 1; visitW = 1;
+  Cell.dens = new Map(); // 取樣只有 n 位，不算擁擠（Crowd Rule 在宏觀不介入）
   C.spawnExpected(n);
   while (C.pedestrians.length) C.move(field); // 一定會結束：放棄計時器總會走完
   heatW = 1; visitW = VISIT_NORM;
@@ -966,12 +977,19 @@ function currentEventMultiplier(t) {
   return active ? active.spawnMultiplier : 1;
 }
 
-// 每小時預期來客 [Tourist, Resident]＝ARRIVALS_PER_SHOP_HOUR × 營業中的興趣目標店鋪數 × trafficMult × 外部事件倍率。
+// 時間波段倍率 [Tourist, Resident]（Spawn Rule 時間波段，agent_setting.md）：查 TIME_BANDS，區間外（休市）＝0，不正規化。
+function timeBandMult() {
+  const h = Cell.hourNow(), b = CONFIG.params.TIME_BANDS.find(([a, e]) => h >= a && h < e);
+  return b ? [b[3], b[2]] : [0, 0]; // TIME_BANDS 列：[起, 終, Resident, Tourist]
+}
+
+// 每小時預期來客 [Tourist, Resident]＝ARRIVALS_PER_SHOP_HOUR × 營業中的興趣目標店鋪數 × trafficMult × 外部事件倍率 × 時間波段倍率。
 function hourlyArrivals() {
   const newCount = World.shops.filter(s => s.state === 'new').length;
   const oldCount = World.shops.filter(s => s.state === 'old').length;
   const k = ARRIVALS_PER_SHOP_HOUR * params.trafficMult * currentEventMultiplier(tick);
-  return [k * newCount, k * oldCount];
+  const [mT, mR] = timeBandMult();
+  return [k * newCount * mT, k * oldCount * mR];
 }
 
 // 微觀：每小時預期來客換成每秒期望值，用機率骰出來，視覺上是不斷有人冒出來。
@@ -987,11 +1005,26 @@ function spawnPedestriansContinuous() {
 // ============================================================
 // 7. 繪圖（p5.js，白色版面）
 // ============================================================
-// 離散七級色階：依 TRAIL_THRESHOLDS（1/2/4/8/16/32/64 次）分級，不做漸層或透明度過渡；沒走過回 null。
-function trailTier(heat, tiers) {
-  let i = -1;
-  while (i + 1 < TRAIL_THRESHOLDS.length && heat >= TRAIL_THRESHOLDS[i + 1]) i++;
-  return i < 0 ? null : tiers[i];
+// 目前顯示模式（params.trailView）的熱度：all＝遊客＋居民合計、tourist／resident＝單一客群、overlap＝兩種都走過才算、其餘 0。
+function trailValue(r, c, view = params.trailView) {
+  const t = touristTrailHeat[r][c], rs = residentTrailHeat[r][c];
+  return view === 'tourist' ? t : view === 'resident' ? rs : view === 'overlap' ? (t > 0 && rs > 0 ? t + rs : 0) : t + rs;
+}
+// 資料範圍：走道格裡有軌跡者的最低／最高值；沒有任何軌跡回 null。每幀在 draw() 重算一次（走道格只有幾百格），畫面一與畫面二共用。
+let trailRange = null;
+function computeTrailRange(valueAt) {
+  let mn = Infinity, mx = 0;
+  for (const a of World.trailCells) {
+    const v = valueAt(a.row, a.col);
+    if (v > 0) { if (v < mn) mn = v; if (v > mx) mx = v; }
+  }
+  return mx > 0 ? { mn, mx } : null;
+}
+// 連續色階：沒軌跡回 null；只有一個值（最低＝最高）給最高色。
+function trailColor(v, ramp, range) {
+  if (!(v > 0) || !range) return null;
+  const t = range.mx > range.mn ? (Math.log(v) - Math.log(range.mn)) / (Math.log(range.mx) - Math.log(range.mn)) : 1;
+  return ramp[Math.max(0, Math.min(255, Math.round(t * 255)))];
 }
 
 // 同一編號（同一家店鋪）的真實範圍：3pt 白色虛線框，蓋在格子上面。座標永遠是矩形（本圖每個編號
@@ -1009,6 +1042,26 @@ function drawStallGroupOutlines(originY, cam = camera) {
     drawingContext.strokeRect(x, y, w, h);
   }
   drawingContext.restore();
+}
+
+// 年代對照選 category 時，營業中店鋪「自己的格子＋擺出的椅子格」整體用紅色實線框起來（椅子是店鋪空間的一部分，見 Cell.extentCells）。
+// 只畫外緣：區域裡每格的四條邊，鄰格不在區域內才畫。
+function drawStallExtentOutlines(cam = camera, originY = OFFSET_Y) {
+  if (!(params.showEraOverlay && params.eraAttribute === 'category')) return;
+  const cs = cam.cellPx, ctx = drawingContext;
+  ctx.save(); ctx.strokeStyle = '#ff2d2d'; ctx.lineWidth = 3; ctx.beginPath();
+  for (const sh of World.shops) {
+    if (!Cell.isOpen(sh) || !Cell.chairsOut() || !sh.chairCells) continue; // 只框有椅子可擺的店鋪
+    const cells = Cell.extentCells(sh), has = new Set(cells.map(([r, c]) => r + ',' + c));
+    for (const [r, c] of cells) {
+      const x = worldToScreenX(c, cam), y = worldToScreenY(r, originY, cam);
+      if (!has.has((r - 1) + ',' + c)) { ctx.moveTo(x, y); ctx.lineTo(x + cs, y); }
+      if (!has.has((r + 1) + ',' + c)) { ctx.moveTo(x, y + cs); ctx.lineTo(x + cs, y + cs); }
+      if (!has.has(r + ',' + (c - 1))) { ctx.moveTo(x, y); ctx.lineTo(x, y + cs); }
+      if (!has.has(r + ',' + (c + 1))) { ctx.moveTo(x + cs, y); ctx.lineTo(x + cs, y + cs); }
+    }
+  }
+  ctx.stroke(); ctx.restore();
 }
 
 // ISO：市場+最近4個街廓的 2.5D 等角展示，跟畫面一同步（同一個 tick/同一批行人）。可拖曳/滾輪縮放
@@ -1853,13 +1906,14 @@ function drawPanel3Label() {
   text('歷史軌跡快照（每跑完一次模擬留一張，依序排列）', OFFSET_X, PANEL3_Y0 - 8);
 }
 
-// 縮圖只畫有軌跡的 aisle 格子（PANEL1_TRAIL_TIERS 同一組色階），其餘格子（牆/設施/入口/攤位）不畫，見使用者需求。
+// 縮圖只畫有軌跡的 aisle 格子（TRAIL_RAMP.all 色帶），其餘格子（牆/設施/入口/攤位）不畫，見使用者需求。
 // 只在 captureRunSnapshot() 當下呼叫一次，畫到離線畫布回傳存進 runSnapshots——不是每幀重畫（見上方效能註解）。
 function renderSnapshotThumb(grid) {
   const pg = createGraphics(THUMB_W, THUMB_H), ctx = pg.drawingContext;
+  const range = computeTrailRange((r, c) => grid[r][c]); // 快照用自己的最低／最高正規化，色帶用「全部」
   for (let r = 0; r < World.ROWS; r++) {
     for (let c = 0; c < World.COLS; c++) {
-      const color = trailTier(grid[r][c], PANEL1_TRAIL_TIERS);
+      const color = trailColor(grid[r][c], TRAIL_RAMP.all, range);
       if (!color) continue;
       ctx.fillStyle = color;
       ctx.fillRect(c * THUMB_CELL, r * THUMB_CELL, THUMB_CELL, THUMB_CELL);
@@ -1973,9 +2027,9 @@ function drawTimeline() {
 
 // 畫面二：只有格子（牆/設施/入口維持map結構色，方便定位）＋只顯示軌跡——不畫攤位營業狀態、不畫行人。
 // stallslot（店鋪範圍）一律不顯示軌跡，只留結構色——即使行人有走進去逛過也不算（軌跡只代表走道動線）。
-// params.trailView（UI 下拉，三選一）決定畫哪一種：
-//   'tourist'／'resident'：只畫該人潮的離散七級色階（PANEL2_TOURIST_TRAIL_TIERS／RESIDENT_TRAIL_TIERS）。
-//   'overlap'：只畫兩種人潮都走過的格子，用 OVERLAP_TRAIL_TIERS 依 tH+rH 合計次數分三級深淺；沒重疊的格子跟沒軌跡一樣是深色底。
+// params.trailView（UI 下拉，四選一，畫面一也吃同一個選項）決定畫哪一種（trailValue）：
+//   'all' 遊客＋居民合計／'tourist'／'resident'：連續色階（TRAIL_RAMP），依目前最低～最高正規化。
+//   'overlap'：只畫兩種人潮都走過的格子（值＝tH+rH）；沒重疊的格子跟沒軌跡一樣是深色底。
 // 走道格子填滿整格，同色階的相鄰格子會直接連成一片色塊，像基因圖的連續色帶（使用者需求）。
 // 2026-09-14：只跑 overviewCamera 看得到的範圍，且只在 panel2Dirty 時重畫一次到離線畫布存起來
 // （見 panel2Cache 宣告處），draw() 每幀只貼圖，不再每幀重新掃一次。
@@ -1983,17 +2037,13 @@ function drawTimeline() {
 function panel2CellStyle(r, c) {
   const t = World.cellType[r][c];
   if (t === 'wall' || t === 'facility') return '#4a5568';
-  if (t === 'entry' || t === 'light_rail_entrance') return '#c6f6d5';
+  if (t === 'entry') return trailColor(trailValue(r, c), TRAIL_RAMP[params.trailView], trailRange) || '#c6f6d5';
+  if (t === 'light_rail_entrance') return '#c6f6d5';
   if (t === 'stallslot') return '#111827';
   if (t === 'sidewalk') return sidewalkHatchPattern;
   if (t === 'crosswalk') return crosswalkHatchPattern;
   if (NEW_TYPE_COLOR[t]) return NEW_TYPE_COLOR[t];
-  const tH = touristTrailHeat[r][c], rH = residentTrailHeat[r][c];
-  let color;
-  if (params.trailView === 'tourist') color = trailTier(tH, PANEL2_TOURIST_TRAIL_TIERS);
-  else if (params.trailView === 'resident') color = trailTier(rH, RESIDENT_TRAIL_TIERS);
-  else color = (tH > 0 && rH > 0) ? trailTier(tH + rH, OVERLAP_TRAIL_TIERS) : null;
-  return color || '#111827';
+  return trailColor(trailValue(r, c), TRAIL_RAMP[params.trailView], trailRange) || '#111827';
 }
 
 function renderPanel2Cache() {
@@ -2035,7 +2085,7 @@ function gridCellStyle(r, c) {
   if (t === 'crosswalk') return crosswalkHatchPattern;
   if (t === 'stallslot') return STALL_COLOR[World.stallAtRC[r + ',' + c].shop.state]; // 使用者需求(1)：色以店鋪為單位，不讀 trailHeat
   // 使用者需求(1)：兩客群合計單一色階；20260914 需求#2：params.showTrail 關掉時一律走道底色，不查熱度。
-  if (t === 'aisle') return (params.showTrail && trailTier(touristTrailHeat[r][c] + residentTrailHeat[r][c], PANEL1_TRAIL_TIERS)) || '#14161c';
+  if (t === 'aisle') return '#14161c'; // 軌跡改由 drawTrailOverlay() 畫在所有圖層之上
   if (t === 'entry' || t === 'light_rail_entrance') return '#c6f6d5';
   if (NEW_TYPE_COLOR[t]) return NEW_TYPE_COLOR[t];
   return '#4a5568'; // wall/facility
@@ -2062,6 +2112,21 @@ function drawChairs() {
     const n = Cell.chairCount(a.row, a.col);
     const x = worldToScreenX(a.col), y = worldToScreenY(a.row, OFFSET_Y);
     for (let i = 0; i < n; i++) rect(x + Math.max(cs * (0.12 + 0.42 * i), i * (w + 1)), y + (cs - w) / 2, w, w, 1);
+  }
+}
+
+// 軌跡疊在年代疊色、店鋪、斜線、外框之上（椅子與行人畫在它上面）：只畫有軌跡的走道／入口格，不透明。
+// 開關 params.showTrail、模式 params.trailView；顏色見 trailColor()。
+function drawTrailOverlay(cam = camera, originY = OFFSET_Y) {
+  if (!params.showTrail || !trailRange) return;
+  const [r0, r1] = visibleRowRange(cam), [c0, c1] = visibleColRange(cam);
+  const cs = cam.cellPx, gap = cs >= 8 ? 1 : 0, ramp = TRAIL_RAMP[params.trailView], ctx = drawingContext;
+  for (const a of World.trailCells) {
+    if (a.row < r0 || a.row > r1 || a.col < c0 || a.col > c1) continue;
+    const color = trailColor(trailValue(a.row, a.col), ramp, trailRange);
+    if (!color) continue;
+    ctx.fillStyle = color;
+    ctx.fillRect(worldToScreenX(a.col, cam), worldToScreenY(a.row, originY, cam), cs - gap, cs - gap);
   }
 }
 
@@ -2148,9 +2213,20 @@ function bindUI() {
     resetSimulation(); playing = false;
   });
   // 拉桿 0–650 → 倍率 10^(v/100)＝1×–3×10^6×（對數）；≤MICRO_MAX_RATE 微觀、超過宏觀。
+  // 速度節點：真實 1 秒＝模擬 X 秒。拉桿上畫刻度、下方按鈕直接跳過去，拉桿落在節點附近 ±4 格時吸附到節點。
+  const SPEED_NODES = [[60, '1秒＝1分'], [1800, '1秒＝30分'], [3600, '1秒＝1小時']].map(([rate, name]) => ({ rate, name, v: Math.round(100 * Math.log10(rate)) }));
+  document.getElementById('speedNodes').innerHTML = SPEED_NODES.map(n => `<option value="${n.v}"></option>`).join('');
+  document.getElementById('speedPresets').innerHTML = SPEED_NODES.map(n => `<button data-v="${n.v}" style="padding:6px 4px;font-size:11px;">${n.name}</button>`).join('');
+  document.getElementById('speedPresets').addEventListener('click', e => {
+    if (!e.target.dataset.v) return;
+    speed.value = e.target.dataset.v; applySpeed();
+  });
   const speedLabel = document.getElementById('speedLabel');
   const applySpeed = () => {
+    const near = SPEED_NODES.find(n => Math.abs(n.v - Number(speed.value)) <= 4);
+    if (near) speed.value = near.v;
     params.rate = Math.min(MAX_RATE, Math.pow(10, Number(speed.value) / 100));
+    if (near) params.rate = near.rate; // 節點用精確倍率（1秒＝1分／30分／1小時）
     if (Math.abs(params.rate - MICRO_MAX_RATE) < 1) params.rate = MICRO_MAX_RATE; // 拉桿格點剛好落在上限附近時吸附到上限，讓上限值選得到
     const r = params.rate, perMin = r * 60; // 真實 1 分鐘 = 模擬 perMin 秒
     const unit = perMin < 3600 ? [60, '分鐘'] : perMin < 86400 ? [3600, '小時'] : perMin < 86400 * 30 ? [86400, '天'] : [86400 * 30, '個月'];
@@ -2164,16 +2240,31 @@ function bindUI() {
     params.trafficMult = Number(trafficMult.value);
     trafficMultLabel.textContent = params.trafficMult.toFixed(1) + '×' + (params.trafficMult === 1 ? '（預設）' : '');
   });
-  trailView.addEventListener('change', () => { params.trailView = trailView.value; panel2Dirty = true; });
+  trailView.addEventListener('change', () => { params.trailView = trailView.value; panel2Dirty = true; updateTrailLegend(); });
   // 年代對照疊色：畫面一本來就每幀直接畫（不像畫面二有離線快取），gridCellStyle() 每幀都會重新讀
   // params，這裡只要更新 params/圖例，不用額外的 dirty 旗標。
   eraYear.addEventListener('change', () => { params.eraYear = eraYear.value; });
   eraAttribute.addEventListener('change', () => { params.eraAttribute = eraAttribute.value; updateEraLegend(); });
-  document.getElementById('trailLegend').innerHTML = PANEL1_TRAIL_TIERS.map(c => `<span style="flex:1;height:13px;background:${c}"></span>`).join('');
+  const grad = ramp => `linear-gradient(to right, ${[0, 64, 128, 192, 255].map(i => ramp[i]).join(',')})`;
+  document.getElementById('trailRampLegend').innerHTML = [['all', '全部（遊客＋居民）'], ['tourist', '遊客'], ['resident', '居民'], ['overlap', '重疊']]
+    .map(([k, name]) => `<div class="legend-item"><span class="sw" style="background:${grad(TRAIL_RAMP[k])}"></span><span class="lbl">${name} 低→高</span></div>`).join('');
+  document.getElementById('snapRampLegend').style.background = grad(TRAIL_RAMP.all);
+  updateTrailLegend();
   updateEraLegend(); // 開場先跑一次（年代對照預設開啟）
 }
 
+// 軌跡圖例：目前模式的色帶（連續漸層）＋當下最低／最高值，每幀隨資料更新。
+function updateTrailLegend() {
+  const bar = document.getElementById('trailLegend'), txt = document.getElementById('trailLegendText');
+  if (!bar) return;
+  const ramp = TRAIL_RAMP[params.trailView];
+  bar.style.background = `linear-gradient(to right, ${[0, 64, 128, 192, 255].map(i => ramp[i]).join(',')})`;
+  const f = v => v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(1) : v.toPrecision(2); // 熱度是換算過的相對量，短時間跑會很小，用有效位數顯示
+  txt.textContent = trailRange ? `動線 低 ${f(trailRange.mn)} → 高 ${f(trailRange.mx)}` : '動線（尚無軌跡）';
+}
+
 function updateStatsDisplay() {
+  updateTrailLegend();
   const [clkDate, clkTime] = simClockLabel().split(' ');
   document.getElementById('simDate').textContent = clkDate;
   document.getElementById('simTime').textContent = clkTime;
@@ -2192,7 +2283,7 @@ function updateStatsDisplay() {
   document.getElementById('stats').innerHTML = `
     <div class="stat-line"><span>Tick（半年一次）／模擬進度</span><b>${tick} / ${(100 * simSec / SIM_END_SEC).toFixed(0)}%${finished ? ' ✅' : ''}</b></div>
     <div class="stat-line"><span>模擬時間　第 ${dayCounter} 天</span><b>${simClockLabel()}</b></div>
-    <div class="stat-line"><span>擺椅 ${Cell.chairsOut() ? '✅' : '—'}　用餐 ${Cell.isMealTime() ? '🍴' : '—'}</span><b>${params.rate <= MICRO_MAX_RATE ? '微觀' : '宏觀'}</b></div>
+    <div class="stat-line"><span>擺椅 ${Cell.chairsOut() ? '✅' : '—'}</span><b>${params.rate <= MICRO_MAX_RATE ? '微觀' : '宏觀'}</b></div>
     <div class="stat-line"><span>椅子數 / 坐著的人</span><b>${World.chairCells.reduce((n, a) => n + Cell.chairCount(a.row, a.col), 0)} / ${World.shops.reduce((n, s) => n + s.seatsTaken, 0)}</b></div>
     <div class="stat-line"><span>new（營業中）</span><b>${counts.new}</b></div>
     <div class="stat-line"><span>new_unused（閒置）</span><b>${counts.new_unused}</b></div>

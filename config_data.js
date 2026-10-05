@@ -40,9 +40,9 @@ const CONFIG = {
    ],
    [
     19,
-    20,
-    0.3,
-    0.3
+    22,
+    0.5,
+    0.5
    ]
   ],
   "WALK_SPEED_MPS": 1,
@@ -52,22 +52,12 @@ const CONFIG = {
   "PASS_COST_OPEN": 1,
   "PASS_COST_CHAIR": 2,
   "DENSITY_RADIUS": 2,
-  "CROWD_THRESHOLD": 4,
-  "JAM_THRESHOLD": 8,
+  "CROWD_THRESHOLD": 25,
+  "JAM_THRESHOLD": 50,
   "CROWD_SLOW_SEC": 1,
   "JAM_GIVEUP_EXTRA": 1,
-  "SIT_SEC": 1200,
-  "MEAL_HOURS": [
-   [
-    11,
-    13
-   ],
-   [
-    17,
-    19
-   ]
-  ],
-  "VISION_RADIUS_CELLS": 50,
+  "SIT_SEC": 3600,
+  "VISION_RADIUS_CELLS": 100,
   "HEAT_BONUS_TIERS": {
    "E": [
     [
@@ -100,8 +90,8 @@ const CONFIG = {
   },
   "CHAIR_ATTRACT_BONUS": 2,
   "VIS_ATTRACT_BONUS": 1,
-  "CHAIR_START_HOUR": 4,
-  "CHAIR_END_HOUR": 20,
+  "CHAIR_START_HOUR": 17,
+  "CHAIR_END_HOUR": 22,
   "REOPEN_PROB": 0.09,
   "HEAT_WINDOW": 2,
   "COLD_STREAK_THRESHOLD": 3,
@@ -116,7 +106,7 @@ const CONFIG = {
   "VIS_FERTILITY_MID": 1,
   "VIS_FERTILITY_HIGH": 2,
   "VIS_LOW": 0.2,
-  "VIS_HIGH": 0.6
+  "VIS_HIGH": 0.4
  },
  "classes": {
   "Human": {
@@ -151,12 +141,15 @@ const CONFIG = {
    },
    "rules": {
     "passableFor": {
-     "desc": "牆/設施不可通行；攤位格只有等於興趣目標類型才可通行，否則視同牆；走道、入口可通行，走道格上的椅子不影響通行",
+     "desc": "只有走道、入口、店鋪格可通行（World.passable 白名單），其餘格型（馬路、人行道、牆、設施…）不可通行；攤位格只有等於興趣目標類型才可通行，否則視同牆；走道格上的椅子不影響通行；攤位格 Cell.noEnter（桌面空間、工作桌面混合、工作設備區）即使是興趣目標也不可通行",
+     "reads": [
+      "Human.interestTarget"
+     ],
      "impl": "agents/tourist.js#passableFor | agents/resident.js#passableFor",
      "status": "implemented"
     },
     "spawnExpected": {
-     "desc": "從入口格（World.entryCells）均勻隨機生成；數量隨興趣目標類型的營業店鋪數增加，另乘外部事件倍率（見 simulator_setting）；再乘時間波段倍率 timeBandMultiplier(agent, 時刻)＝波段倍率，不正規化（0 休市、<1 離峰、1 基準、>1 尖峰；尚未實作）",
+     "desc": "從入口格（World.entryCells）均勻隨機生成；數量隨興趣目標類型的營業店鋪數增加，另乘外部事件倍率（見 simulator_setting）；再乘時間波段倍率 timeBandMultiplier(agent, 時刻)＝波段倍率，不正規化（0 休市、<1 離峰、1 基準、>1 尖峰）",
      "params": {
       "TIME_BANDS": {
        "value": [
@@ -198,16 +191,19 @@ const CONFIG = {
         ],
         [
          19,
-         20,
-         0.3,
-         0.3
+         22,
+         0.5,
+         0.5
         ]
        ],
        "unit": "[起, 終) 小時、Resident 倍率、Tourist 倍率",
-       "note": "區間外（20–04）倍率 0；高峰：早市 06–09、午間 11–13（Tourist）、傍晚 16–19；設計假設非實測，依傳統市場上午與傍晚高峰＋本專案 MEAL_HOURS／擺椅時段；自訂值，可覆寫"
+       "note": "區間外（22–04）倍率 0；高峰：早市 06–09、午間 11–13（Tourist）、傍晚 16–19；設計假設非實測，依傳統市場上午與傍晚高峰＋用餐時間的人流（午間 11–13、傍晚 16–19 高峰；用餐時間只影響人流，不影響人會不會坐下）；自訂值，可覆寫"
       }
      },
-     "impl": "agents/tourist.js#spawnExpected | agents/resident.js#spawnExpected",
+     "reads": [
+      "Human.interestTarget"
+     ],
+     "impl": "agents/tourist.js#spawnExpected | agents/resident.js#spawnExpected | index.html#timeBandMult",
      "status": "implemented"
     },
     "movementSpeed": {
@@ -240,7 +236,23 @@ const CONFIG = {
     },
     "exitStep": {
      "desc": "站在攤位格裡又沒有下一個目標 → 多來源 BFS（起點＝全走道格）走最近走道出去，不閒晃",
+     "reads": [
+      "Resident.bfsFieldFromTargets"
+     ],
      "impl": "agents/tourist.js#exitStep | agents/resident.js#exitStep",
+     "status": "implemented"
+    },
+    "visitRule": {
+     "desc": "Visit Rule：到訪店鋪＝所在格 Cell.shopsReach（該格與上下左右相鄰攤位格所屬店鋪，加上擺椅時段內 occupiedBy 含該店的椅子格）；店鋪狀態＝興趣目標且這趟沒到訪過 → 到訪（visited 加入、ticksSinceProgress 歸零、_visitTick 加量），隨即走 chairSeating；一步最多到訪一家。桌面與設備格不能進，所以到訪不靠踏進店鋪格",
+     "reads": [
+      "Cell.occupiedBy",
+      "shop.state",
+      "Human.interestTarget"
+     ],
+     "writes": [
+      "Human.giveupRule"
+     ],
+     "impl": "agents/cell.js#shopsReach | agents/tourist.js#step | agents/resident.js#step",
      "status": "implemented"
     },
     "chairSlowdown": {
@@ -255,7 +267,8 @@ const CONFIG = {
      "reads": [
       "Cell.occupiedBy",
       "shop.state",
-      "daySec"
+      "daySec",
+      "Human.giveupRule"
      ],
      "impl": "agents/cell.js#slowIfChair | agents/cell.js#tickPause | agents/tourist.js#move | agents/resident.js#move",
      "status": "implemented"
@@ -283,10 +296,11 @@ const CONFIG = {
       }
      },
      "reads": [
-      "Cell.passCost"
+      "Cell.passCost",
+      "Resident.bfsFieldFromTargets"
      ],
-     "impl": "agents/resident.js#passCostPath",
-     "status": "planned"
+     "impl": "agents/cell.js#passCost | agents/resident.js#bfsFieldFromTargets",
+     "status": "implemented"
     },
     "crowdRule": {
      "desc": "Crowd Rule：所在格 density 未達 CROWD_THRESHOLD 不受影響；達到且未超過 JAM_THRESHOLD → 多停 CROWD_SLOW_SEC 秒；超過 JAM_THRESHOLD（塞住）→ 不再多停，每步 ticksSinceProgress 額外加 JAM_GIVEUP_EXTRA。Tourist、Resident 相同，不看個性；人多不會讓人想靠近（靠近熱鬧的是 Tourist.heatBonus）",
@@ -297,12 +311,12 @@ const CONFIG = {
        "note": "density 計算範圍；自訂值，可覆寫"
       },
       "CROWD_THRESHOLD": {
-       "value": 4,
+       "value": 25,
        "unit": "人",
        "note": "自訂值，可覆寫"
       },
       "JAM_THRESHOLD": {
-       "value": 8,
+       "value": 50,
        "unit": "人",
        "note": "自訂值，可覆寫"
       },
@@ -320,30 +334,19 @@ const CONFIG = {
      "reads": [
       "Cell.density"
      ],
-     "impl": "agents/tourist.js#move | agents/resident.js#move（inline）",
-     "status": "planned"
+     "writes": [
+      "Human.giveupRule"
+     ],
+     "impl": "agents/cell.js#crowdReact | agents/cell.js#refreshDensity | agents/tourist.js#move | agents/resident.js#move",
+     "status": "implemented"
     },
     "chairSeating": {
-     "desc": "Chair Seating Rule：成功到訪新店鋪的當下，若用餐時間（當天時刻落在 MEAL_HOURS 任一小時區間）且該店有擺出椅子、seatsTaken < 座位數 → 坐下：seatsTaken+1，原地停留 SIT_SEC 秒（步），停完 seatsTaken−1；否則不坐照原本逛完就走；滿座時走到門口仍算到訪（visited 照加、ticksSinceProgress 照歸零）；停留期間 ticksSinceProgress 照常累加。daySec（當天第幾秒）定義同 Vendor.chairRule，由呼叫端傳入",
+     "desc": "Chair Seating Rule：成功到訪新店鋪的當下，若該店有擺出椅子、seatsTaken < 座位數 → 坐下：seatsTaken+1，原地停留 SIT_SEC 秒（步），停完 seatsTaken−1；否則不坐照原本逛完就走；滿座時走到門口仍算到訪（visited 照加、ticksSinceProgress 照歸零）；坐著期間 ticksSinceProgress 不累加（坐下算還在店裡，不然 30 分鐘放棄計時器會把人提早趕走）。daySec（當天第幾秒）定義同 Vendor.chairRule，由呼叫端傳入",
      "params": {
       "SIT_SEC": {
-       "value": 1200,
+       "value": 3600,
        "unit": "sec",
-       "note": "20 分鐘；自訂值，可覆寫"
-      },
-      "MEAL_HOURS": {
-       "value": [
-        [
-         11,
-         13
-        ],
-        [
-         17,
-         19
-        ]
-       ],
-       "unit": "[起, 終) 小時區間",
-       "note": "用餐時間 11:00～13:00、17:00～19:00，全域一組；Tourist.chairBonus 共用；自訂值，可覆寫"
+       "note": "60 分鐘；自訂值，可覆寫"
       }
      },
      "reads": [
@@ -351,7 +354,8 @@ const CONFIG = {
       "Vendor.seatsTaken"
      ],
      "writes": [
-      "Vendor.seatsTaken"
+      "Vendor.seatsTaken",
+      "Human.giveupRule"
      ],
      "impl": "agents/cell.js#trySit | agents/cell.js#hasSeat | agents/cell.js#release | agents/tourist.js#move | agents/resident.js#move",
      "status": "implemented"
@@ -373,6 +377,10 @@ const CONFIG = {
      "desc": "BFS 版：全市場多來源 BFS 找最近未訪的營業 Vendor (Old)，純看距離；沒有目標或不可達且站在攤位格就 exitStep，否則隨機走",
      "ref": "99_spec/isovist_algorithm.md#residentStep",
      "source": "Wayfinding 文獻：熟悉環境者用既有認知地圖抄捷徑 https://pmc.ncbi.nlm.nih.gov/articles/PMC8324579/",
+     "reads": [
+      "Human.interestTarget",
+      "Resident.bfsFieldFromTargets"
+     ],
      "impl": "agents/resident.js#move",
      "status": "implemented"
     },
@@ -415,16 +423,21 @@ const CONFIG = {
     "move": {
      "desc": "isovist 版：找可見未訪目標（依 Target Scoring）→ 找不到且站在攤位格就 exitStep → 否則跟隨可見同伴 → 都沒有就隨機走",
      "ref": "99_spec/isovist_algorithm.md#touristStep",
+     "reads": [
+      "Human.interestTarget",
+      "Tourist.findVisibleTarget",
+      "Tourist.findVisiblePeer"
+     ],
      "impl": "agents/tourist.js#move",
      "status": "implemented"
     },
     "isVisible": {
-     "desc": "可見性判定：牆、設施、建物、任何攤位格（終點除外）擋視線；半徑上限 100 m ≈ 50 格；同一套也用在看其他 Tourist",
+     "desc": "可見性判定：牆、設施、建物、任何攤位格（終點除外）擋視線；半徑上限 100 m ≈ 100 格（1 格＝1 m）；同一套也用在看其他 Tourist",
      "params": {
       "VISION_RADIUS_CELLS": {
-       "value": 50,
+       "value": 100,
        "unit": "cell",
-       "note": "100 m ÷ 2 m/格"
+       "note": "100 m ÷ 1 m/格（CELL_SIZE_M）"
       }
      },
      "impl": "agents/tourist.js#isVisible",
@@ -473,7 +486,7 @@ const CONFIG = {
      "status": "implemented"
     },
     "chairBonus": {
-     "desc": "Target Scoring 的椅子加分：分數＝距離−heatBonus−chairBonus；用餐時間（Human.chairSeating 的 MEAL_HOURS）且該店鋪有擺出椅子、seatsTaken < 座位數 → 減掉 CHAIR_ATTRACT_BONUS（店感覺比較近）；非用餐時間、沒擺椅子、或座位已滿 → 0，滿座的店失去吸引力。只有 Tourist 套用，Resident 純看距離",
+     "desc": "Target Scoring 的椅子加分：分數＝距離−heatBonus−chairBonus；該店鋪有擺出椅子、seatsTaken < 座位數 → 減掉 CHAIR_ATTRACT_BONUS（店感覺比較近）；沒擺椅子、或座位已滿 → 0，滿座的店失去吸引力。只有 Tourist 套用，Resident 純看距離",
      "params": {
       "CHAIR_ATTRACT_BONUS": {
        "value": 2,
@@ -501,15 +514,25 @@ const CONFIG = {
       "Cell.visibility"
      ],
      "impl": "agents/tourist.js#visBonus",
-     "status": "planned"
+     "status": "implemented"
     },
     "findVisibleTarget": {
      "desc": "看得到、未訪的同類目標裡 score 最小者",
+     "reads": [
+      "Tourist.heatBonus",
+      "Tourist.chairBonus",
+      "Tourist.visBonus",
+      "Tourist.isVisible",
+      "Human.interestTarget"
+     ],
      "impl": "agents/tourist.js#findVisibleTarget",
      "status": "implemented"
     },
     "findVisiblePeer": {
      "desc": "跟隨 fallback：找看得到的其他 Tourist（純距離、不加熱度）",
+     "reads": [
+      "Tourist.isVisible"
+     ],
      "impl": "agents/tourist.js#findVisiblePeer",
      "status": "implemented"
     }
@@ -550,14 +573,14 @@ const CONFIG = {
      "desc": "椅子是否擺出看時間與店鋪營業狀態：當天時刻在 [CHAIR_START_HOUR, CHAIR_END_HOUR)（小時）且該店有營業 → 走道格 occupiedBy（QGIS 標定清單）裡這家店有一張椅子；時段外或沒營業 → 沒有。「營業」＝店鋪狀態 new 或 old；blank 與 Vendor (Idle) 不擺；店鋪以位置 code 為準，搬遷只交換狀態不改 code。不寫入任何狀態：椅子狀態與座位數由時間＋營業狀態＋occupiedBy 當下算出，沒有重設或收椅處理。daySec＝當天第幾秒（程式的 Cell.daySec），由呼叫端傳入。mobility 由此推得。椅子不擋路也不擋視線，行人反應見 Human.chairSlowdown／chairTieBreak／chairSeating 與 Tourist.chairBonus。沒有屬性讓規則分岔",
      "params": {
       "CHAIR_START_HOUR": {
-       "value": 4,
+       "value": 17,
        "unit": "hour",
-       "note": "擺椅起點 04:00，全域一組"
+       "note": "擺椅起點 17:00（熟食店傍晚才開），全域一組"
       },
       "CHAIR_END_HOUR": {
-       "value": 20,
+       "value": 22,
        "unit": "hour",
-       "note": "擺椅終點 20:00（不含），全域一組"
+       "note": "擺椅終點 22:00（不含，熟食店收攤），全域一組"
       }
      },
      "reads": [
@@ -595,6 +618,9 @@ const CONFIG = {
        ]
       }
      ],
+     "reads": [
+      "VendorOld.fixed"
+     ],
      "status": "implemented"
     }
    },
@@ -609,6 +635,9 @@ const CONFIG = {
       }
      },
      "dispatchedBy": "generation",
+     "reads": [
+      "VendorNew.initStall"
+     ],
      "impl": "agents/vendorIdle.js#stepTick",
      "status": "implemented"
     }
@@ -712,7 +741,7 @@ const CONFIG = {
      "status": "implemented"
     },
     "siteFertility": {
-     "desc": "空店鋪搬遷權重 weight＝heat（店鋪格 touristTrailHeat+residentTrailHeat 總和，不衰減）＋ corridorFrontage×FRONTAGE_SCALE（建築先天條件）＋ visFertility（shop.visibility：未達 VIS_LOW 為 0、一般 VIS_FERTILITY_MID、超過 VIS_HIGH 為 VIS_FERTILITY_HIGH，固定值；尚未實作）＋ FERTILITY_BASE_WEIGHT（避免全 0 死鎖）",
+     "desc": "空店鋪搬遷權重 weight＝heat（店鋪格 touristTrailHeat+residentTrailHeat 總和，不衰減）＋ corridorFrontage×FRONTAGE_SCALE（建築先天條件）＋ visFertility（shop.visibility：未達 VIS_LOW 為 0、一般 VIS_FERTILITY_MID、超過 VIS_HIGH 為 VIS_FERTILITY_HIGH，固定值）＋ FERTILITY_BASE_WEIGHT（避免全 0 死鎖）",
      "params": {
       "FERTILITY_BASE_WEIGHT": {
        "value": 1,
@@ -739,7 +768,7 @@ const CONFIG = {
       "Cell.corridorFrontage",
       "Cell.visibility"
      ],
-     "impl": "agents/vendorNew.js#shopFertility | agents/vendorNew.js#pickFertileBlank",
+     "impl": "agents/vendorNew.js#visFertility | agents/vendorNew.js#shopFertility | agents/vendorNew.js#pickFertileBlank",
      "status": "implemented"
     },
     "stepTick": {
@@ -749,6 +778,10 @@ const CONFIG = {
     },
     "initStall": {
      "desc": "moveTimer／visitHist／zeroStreak 歸零",
+     "writes": [
+      "VendorNew.popularity",
+      "VendorNew.coldStreak"
+     ],
      "impl": "agents/vendorNew.js#initStall",
      "status": "implemented"
     },
@@ -850,9 +883,31 @@ const CONFIG = {
      "impl": "agents/cell.js#hasChair"
     },
     "occupiedBy": {
-     "desc": "走道格上有資格擺椅的店鋪 code 清單（兩家共用的用餐區可有兩個），QGIS 標定（ERA_DATA.cells['r,c'].occupiedBy，值是 display_code），固定不變、不隨模擬改寫；只有這一份。椅子是否擺出看時間與店鋪營業狀態（見 Vendor.chairRule）",
+     "desc": "有資格擺椅的店鋪 code 清單（走道格：兩家共用的用餐區可有兩個；店鋪自己 zone 是用餐區的攤位格：＝自己的 code，用餐區一律有椅子），QGIS 標定（ERA_DATA.cells['r,c'].occupiedBy，值是 display_code），固定不變、不隨模擬改寫；只有這一份。椅子是否擺出看時間與店鋪營業狀態（見 Vendor.chairRule）",
      "source": "使用者 2026-10-04 在 QGIS aisle.occupied_by 標定 33 格，經 adapter_era_data.py 輸出到 ERA_DATA",
      "impl": "agents/cell.js#buildCellSpace",
+     "status": "implemented"
+    },
+    "noEnter": {
+     "desc": "攤位格客人不進入：zone（SIM_ERA＝2026 的 ERA_DATA zone）是桌面空間、工作桌面混合、工作設備區為真；位置固定，工作空間、用餐區為假",
+     "variants": [
+      {
+       "adjective": "一個桌面或設備的格子",
+       "when": "noEnter 為真",
+       "effect": [
+        "Human.passableFor 一律不可通行",
+        "客人靠 Human.visitRule 站在外面到訪"
+       ]
+      },
+      {
+       "adjective": "一個可站人的店鋪格",
+       "when": "noEnter 為假（工作空間、用餐區）",
+       "effect": [
+        "Human.passableFor 依興趣目標狀態通行"
+       ]
+      }
+     ],
+     "impl": "agents/cell.js#buildCellSpace | agents/cell.js#noEnter",
      "status": "implemented"
     },
     "passCost": {
@@ -878,10 +933,10 @@ const CONFIG = {
       "Cell.mobility"
      ],
      "impl": "agents/cell.js#passCost",
-     "status": "planned"
+     "status": "implemented"
     },
     "density": {
-     "desc": "這格周圍 DENSITY_RADIUS 格內的行人數（Tourist＋Resident 合計），每步依場上行人位置重算，不累積、不存歷史（累積的是 touristTrailHeat／residentTrailHeat）",
+     "desc": "這格周圍 DENSITY_RADIUS 格（方形範圍）內、不含自己的行人數（Tourist＋Resident 合計），每步依場上行人位置重算，不累積、不存歷史（累積的是 touristTrailHeat／residentTrailHeat）",
      "variants": [
       {
        "adjective": "一個冷清的格子",
@@ -905,8 +960,8 @@ const CONFIG = {
        ]
       }
      ],
-     "impl": "agents/cell.js#density",
-     "status": "planned"
+     "impl": "agents/cell.js#refreshDensity | agents/cell.js#densityAt",
+     "status": "implemented"
     },
     "visibility": {
      "desc": "0～1：能看到這格的走道格數，除以全圖最大值；阻擋判定同 Tourist.isVisible（牆、設施、建物、任何攤位格擋視線，距離上限同監測範圍）；位置固定，阻擋物變了才重算。店鋪彙總＝所屬格子平均值，存 shop.visibility，設定時算一次。與 corridorFrontage 不同：後者只數臨走道的邊，這個數實際看得到的範圍",
@@ -917,7 +972,7 @@ const CONFIG = {
        "note": "低於 → 隱蔽；自訂值，可覆寫"
       },
       "VIS_HIGH": {
-       "value": 0.6,
+       "value": 0.4,
        "unit": "0~1",
        "note": "高於 → 顯眼；自訂值，可覆寫"
       }
@@ -948,8 +1003,8 @@ const CONFIG = {
        ]
       }
      ],
-     "impl": "agents/cell.js#visibilityOf | agents/cell.js#shopVisibility",
-     "status": "planned"
+     "impl": "agents/cell.js#buildVisibility | agents/cell.js#shopVisibility",
+     "status": "implemented"
     },
     "orientation": {
      "desc": "方向性",

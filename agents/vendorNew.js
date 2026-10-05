@@ -44,11 +44,17 @@ const VendorNew = {
   //     見 simulator_setting.md「視覺效果—動線／路徑」）——地點過去被驗證過的人氣，累積出來的軟資料。
   // (2) shop.corridorFrontage × FRONTAGE_SCALE——讀 World.cellSpace（Cell Attribute 陣列，website/agents/cell.js）
   //     算出來的店面臨走道比例，地點本身的先天可及性，就算從未被使用過（痕跡=0）也不會跟其他空格沒有差別。
-  // ＋ FERTILITY_BASE_WEIGHT 底線，避免兩項都是 0 時永久死鎖。
+  // ＋ FERTILITY_BASE_WEIGHT 底線，避免三項都是 0 時永久死鎖。
   shopFertility(shop) {
     let heat = 0;
     for (const c of shop.cells) heat += touristTrailHeat[c.row][c.col] + residentTrailHeat[c.row][c.col];
-    return heat + shop.corridorFrontage * this.FRONTAGE_SCALE + this.FERTILITY_BASE_WEIGHT;
+    return heat + shop.corridorFrontage * this.FRONTAGE_SCALE + this.visFertility(shop) + this.FERTILITY_BASE_WEIGHT;
+  },
+
+  // (3) 可見度項：shop.visibility 隱蔽（< VIS_LOW）0、一般 VIS_FERTILITY_MID、顯眼（> VIS_HIGH）VIS_FERTILITY_HIGH，兩級固定值。
+  visFertility(shop) {
+    const P = CONFIG.params;
+    return shop.visibility < P.VIS_LOW ? 0 : shop.visibility > P.VIS_HIGH ? P.VIS_FERTILITY_HIGH : P.VIS_FERTILITY_MID;
   },
 
   pickFertileBlank(blanks) {

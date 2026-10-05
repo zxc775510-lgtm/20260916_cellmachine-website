@@ -16,7 +16,7 @@ const Resident = {
     const t = World.cellType[r][c];
     if (t !== 'stallslot') return true;
     const s = World.stallAtRC[r + ',' + c];
-    return s.shop.state === this.interestState;
+    return s.shop.state === this.interestState && !Cell.noEnter(r, c); // 桌面／設備格不進（Passability Rule）
   },
 
   // 演算法第6點 bfsFieldFromTargets：多來源 BFS，起點＝targets 全部同時展開，field[r][c]＝走到最近一個目標的實際步數。
@@ -24,26 +24,31 @@ const Resident = {
   // stopAt 那一格跟它的4鄰格，BFS 本身「一格的距離值一旦指定就不會再變」，所以搜到 stopAt 那格當下就能停，
   // 跟跑完全圖的結果完全等價，不是打折的近似值——把 O(全圖格數) 降成 O(離最近目標的實際步數)。
   // dist 也從整張網格大小的陣列改成 Map（只存真的算過的格子），避免每次呼叫都配置一個跟地圖同大小的陣列。
+  // Pass Cost Rule（agent_setting.md）：路徑成本＝每格 Cell.passCost 加總，不再是單位步數。成本只有 1／2 這種小整數，
+  // 用 Dial 分桶（buckets[累計成本]）取代 heap。反向展開：鄰格走進 (r,c) 要付 (r,c) 的成本，所以 nd＝d＋passCost(r,c)。
+  // 停止條件：一桶（同成本）一定要整桶展開完才停——同桶裡成本較低的格子（1）可能把 stopAt 鄰格的值壓低（stopAt 若是 2），
+  // 鄰格值才確定；而且要在 stopAt 展開之後（鄰格拿到值之後）停，理由同單位成本版。
   bfsFieldFromTargets(targets, stopAt) {
     const dist = new Map();
     const key = (r, c) => r * World.COLS + c;
-    const q = [];
-    for (const s of targets) { const k = key(s.row, s.col); if (!dist.has(k)) { dist.set(k, 0); q.push([s.row, s.col]); } }
-    let head = 0;
-    while (head < q.length) {
-      const [r, c] = q[head++];
-      const d = dist.get(key(r, c));
-      for (const [dr, dc] of World.DIRS4) {
-        const nr = r + dr, nc = c + dc;
-        if (!this.passableFor(nr, nc)) continue;
-        const nk = key(nr, nc);
-        if (dist.has(nk)) continue;
-        dist.set(nk, d + 1);
-        q.push([nr, nc]);
+    const buckets = [[]];
+    for (const s of targets) { const k = key(s.row, s.col); if (!dist.has(k)) { dist.set(k, 0); buckets[0].push([s.row, s.col]); } }
+    for (let d = 0; d < buckets.length; d++) {
+      let found = false;
+      for (const [r, c] of buckets[d] || []) {
+        if (dist.get(key(r, c)) !== d) continue; // 已被更便宜的路徑更新過
+        const nd = d + Cell.passCost(r, c);
+        for (const [dr, dc] of World.DIRS4) {
+          const nr = r + dr, nc = c + dc;
+          if (!this.passableFor(nr, nc)) continue;
+          const nk = key(nr, nc), old = dist.get(nk);
+          if (old !== undefined && old <= nd) continue;
+          dist.set(nk, nd);
+          (buckets[nd] || (buckets[nd] = [])).push([nr, nc]);
+        }
+        if (stopAt && r === stopAt.row && c === stopAt.col) found = true;
       }
-      // 一定要先展開完 (r,c) 的鄰格再檢查停止條件：stopAt 自己的距離值在被展開的當下才確定會被用到的
-      // 4鄰格也都拿到值，提早在展開前就跳出會讓鄰格漏算，變成 bestStepByField 誤判成不可達。
-      if (stopAt && r === stopAt.row && c === stopAt.col) break;
+      if (found) break;
     }
     return dist;
   },
@@ -100,7 +105,7 @@ const Resident = {
     const stillAlive = [];
     for (const p of this.pedestrians) {
       if (!Cell.tickPause(p)) this.step(p, trailHeat); // 停留中（走慢／坐下）這一步不移動
-      p.ticksSinceProgress++;
+      if (!p.sitShop) p.ticksSinceProgress++; // 坐著不算沒進展（見 Chair Seating Rule）
       if (p.ticksSinceProgress < this.giveupSec) stillAlive.push(p);
       else Cell.release(p);
     }
@@ -115,16 +120,17 @@ const Resident = {
       }
       if (!next && World.cellType[p.row][p.col] === 'stallslot') next = this.exitStep(p);
       if (!next) next = this.randomStep(p); // 沒有未訪目標／目標暫時不可達的備援
-      if (next) { p.row = next[0]; p.col = next[1]; Cell.slowIfChair(p); } // Chair Slowdown Rule
+      if (next) { p.row = next[0]; p.col = next[1]; Cell.slowIfChair(p); Cell.crowdReact(p); } // Chair Slowdown Rule、Crowd Rule
 
       trailHeat[p.row][p.col] += TRAIL_STEP_ADD * heatW; // 不衰減、不封頂，見 simulator_setting.md
 
-      const landed = World.stallAtRC[p.row + ',' + p.col];
-      if (landed && landed.shop.state === this.interestState && !p.visited.has(landed.shop.code)) {
-        landed.shop._visitTick = (landed.shop._visitTick || 0) + visitW; // 人氣熱度記在店鋪上，供 VendorOld/VendorNew 用
-        p.visited.add(landed.shop.code);
+      for (const shop of Cell.shopsReach(p.row, p.col)) { // Visit Rule：站在店面前／店面延伸的椅子格也算到訪
+        if (shop.state !== this.interestState || p.visited.has(shop.code)) continue;
+        shop._visitTick = (shop._visitTick || 0) + visitW; // 人氣熱度記在店鋪上，供 VendorOld/VendorNew 用
+        p.visited.add(shop.code);
         p.ticksSinceProgress = 0;
-        Cell.trySit(p, landed.shop); // Chair Seating Rule
+        Cell.trySit(p, shop); // Chair Seating Rule
+        break;
       }
   },
 

@@ -3,11 +3,12 @@
 const Tourist = {
   interestState: 'new',   // Attribute：興趣目標＝營業中的 Vendor (New)，排除這趟已到訪過的
   giveupSec: CONFIG.params.GIVEUP_SEC, // 數值來源：99_config/agents/human.json；        // 演算法第7點 GIVEUP_SEC；文件沒留原始數字，沿用 isovist_sim.html 的自訂值
-  visionRadius: CONFIG.params.VISION_RADIUS_CELLS, // 數值來源：99_config/agents/tourist.json；      // 監測範圍：100公尺 ÷ 每格2公尺 ≈ 50格半徑（本圖對角線~28.6格，目前不太會擋到誰，公式保留供之後放大場景重算）
+  visionRadius: CONFIG.params.VISION_RADIUS_CELLS, // 數值來源：99_config/agents/tourist.json；      // 監測範圍：100公尺 ÷ 每格1公尺 ≈ 100格半徑（本圖對角線~28.6格，目前不太會擋到誰，公式保留供之後放大場景重算）
   pedestrians: [],
 
   reset() {
     this.pedestrians = [];
+    this.bfsCache.clear(); this.bfsCacheTick = -1; // 重設時店鋪狀態回開局，舊的 BFS 快取作廢
   },
 
   // 通行限制：牆/設施不可過；攤位格只有等於興趣目標狀態才能踏入，否則視同牆。
@@ -17,7 +18,7 @@ const Tourist = {
     const t = World.cellType[r][c];
     if (t !== 'stallslot') return true;
     const s = World.stallAtRC[r + ',' + c];
-    return s.shop.state === this.interestState;
+    return s.shop.state === this.interestState && !Cell.noEnter(r, c); // 桌面／設備格不進（Passability Rule）
   },
 
   // 演算法「Bresenham」：回傳 (r0,c0)→(r1,c1) 之間的格子，不含起點、含終點。
@@ -39,7 +40,32 @@ const Tourist = {
   // 演算法第1點 isVisible：阻擋（牆/設施/建物/任何攤位格，終點本身除外）＋距離上限，兩者疊加才算看得到。
   // 同一套判定也用在「看不看得到其他 Tourist」（findVisiblePeer 跟隨 fallback），不是另一套規則。
   // building 加入阻擋清單：20260914 使用者需求，見 agent_setting.md「監測範圍」。
+  // 效能：結果只跟靜態地圖（cellType）與 visionRadius 有關，開局之後不變，所以整組 (起點,終點) 結果快取起來；
+  // 高倍率播放時每步要查「每位行人×每個攤位格」的視線，不快取會佔掉大半運算。
+  // 格子編成小整數 id，結果存成「起點 id × 終點 id」的 Uint8Array（0 未算／1 看不到／2 看得到）；
+  // 用 Map 或把 (起點,終點) 合成大數字當 key 實測比不快取還慢。id 超過 VIS_CAP 的格子退回直接算（不快取）。
+  VIS_CAP: 4096,
+  visId: null, visNext: 0, visRows: [],
   isVisible(r0, c0, r1, c1) {
+    if (!this.visId) this.visId = new Int32Array(World.ROWS * World.COLS).fill(-1);
+    const k0 = r0 * World.COLS + c0, k1 = r1 * World.COLS + c1;
+    let i0 = this.visId[k0]; if (i0 < 0) i0 = this.visId[k0] = this.visNext++;
+    let i1 = this.visId[k1]; if (i1 < 0) i1 = this.visId[k1] = this.visNext++;
+    if (i0 >= this.VIS_CAP || i1 >= this.VIS_CAP) return this.computeVisible(r0, c0, r1, c1);
+    const row = this.visRows[i0] || (this.visRows[i0] = new Uint8Array(this.VIS_CAP));
+    let v = row[i1];
+    if (!v) { v = this.computeVisible(r0, c0, r1, c1) ? 2 : 1; row[i1] = v; }
+    return v === 2;
+  },
+  // 從某格看得到的攤位格清單（順序同 World.stalls），也只跟靜態地圖有關，每個起點格只算一次。
+  stallsSeen: new Map(),
+  visibleStalls(r, c) {
+    const k = r * World.COLS + c;
+    let l = this.stallsSeen.get(k);
+    if (!l) { l = World.stalls.filter(s => this.isVisible(r, c, s.row, s.col)); this.stallsSeen.set(k, l); }
+    return l;
+  },
+  computeVisible(r0, c0, r1, c1) {
     if (Math.hypot(r1 - r0, c1 - c0) > this.visionRadius) return false;
     const line = this.bresenhamCells(r0, c0, r1, c1);
     for (const [r, c] of line) {
@@ -56,18 +82,20 @@ const Tourist = {
     return t ? t[1] : 0;
   },
 
-  // Target Scoring 的椅子加分（Tourist 專屬）：用餐時間且該店有擺出椅子、還有空位 → 分數減 CHAIR_ATTRACT_BONUS（感覺比較近）；滿座或非用餐時間為 0。
+  // Target Scoring 的椅子加分（Tourist 專屬）：該店有擺出椅子、還有空位 → 分數減 CHAIR_ATTRACT_BONUS（感覺比較近）；滿座或沒擺椅子為 0。
   chairBonus(shop) { return Cell.hasSeat(shop) ? CONFIG.params.CHAIR_ATTRACT_BONUS : 0; },
+
+  // Target Scoring 的可見度加分（Tourist 專屬）：店鋪 visibility 超過 VIS_HIGH（顯眼）→ 分數減 VIS_ATTRACT_BONUS，固定值；其餘 0。
+  visBonus(shop) { return shop.visibility > CONFIG.params.VIS_HIGH ? CONFIG.params.VIS_ATTRACT_BONUS : 0; },
 
   // 演算法第2點 findVisibleTarget：看得到、還沒去過的同類型目標裡，score(距離−熱度加成)最小者，同分隨機。
   // 到訪判定以店鋪（s.shop.code）為單位：同店鋪的其他格子不會被當成沒去過的新目標。
   findVisibleTarget(p, trailHeat) {
     let best = Infinity, cands = [];
-    for (const s of World.stalls) {
+    for (const s of this.visibleStalls(p.row, p.col)) {
       if (s.shop.state !== this.interestState || p.visited.has(s.shop.code)) continue;
-      if (!this.isVisible(p.row, p.col, s.row, s.col)) continue;
       const dist = Math.hypot(s.row - p.row, s.col - p.col);
-      const score = dist - this.heatBonus(trailHeat[s.row][s.col]) - this.chairBonus(s.shop);
+      const score = dist - this.heatBonus(trailHeat[s.row][s.col]) - this.chairBonus(s.shop) - this.visBonus(s.shop);
       if (score < best) { best = score; cands = [s]; }
       else if (score === best) cands.push(s);
     }
@@ -80,8 +108,9 @@ const Tourist = {
     let best = Infinity, cands = [];
     for (const other of this.pedestrians) {
       if (other === p) continue;
-      if (!this.isVisible(p.row, p.col, other.row, other.col)) continue;
       const dist = Math.hypot(other.row - p.row, other.col - p.col);
+      if (dist > best) continue; // 比目前最近的還遠就不用查視線（結果相同，只是少查）
+      if (!this.isVisible(p.row, p.col, other.row, other.col)) continue;
       if (dist < best) { best = dist; cands = [other]; }
       else if (dist === best) cands.push(other);
     }
@@ -119,7 +148,16 @@ const Tourist = {
   // 這裡原本每次呼叫都配置＋掃過一張跟地圖同大小的陣列——但 bestStepByField 只會查 stopAt 這一格跟它的4鄰格，
   // BFS「距離值一旦指定就不會再變」，搜到 stopAt 就能停，結果完全等價、不是打折的近似值。dist 也從陣列改成
   // 只存真的算過的格子的 Map。
+  // 效能：結果只跟「這格(stopAt)」與店鋪營業狀態有關，狀態只在 stepTick 改變，所以每格快取、換 tick 或重設時清掉。
+  bfsCache: new Map(), bfsCacheTick: -1,
   bfsFieldToAisle(stopAt) {
+    if (this.bfsCacheTick !== tick) { this.bfsCache.clear(); this.bfsCacheTick = tick; }
+    const key = stopAt ? stopAt.row * World.COLS + stopAt.col : -1;
+    let dist = this.bfsCache.get(key);
+    if (!dist) { dist = this.computeBfsFieldToAisle(stopAt); this.bfsCache.set(key, dist); }
+    return dist;
+  },
+  computeBfsFieldToAisle(stopAt) {
     const dist = new Map();
     const key = (r, c) => r * World.COLS + c;
     const q = [];
@@ -181,7 +219,7 @@ const Tourist = {
     const stillAlive = [];
     for (const p of this.pedestrians) {
       if (!Cell.tickPause(p)) this.step(p, trailHeat); // 停留中（走慢／坐下）這一步不移動
-      p.ticksSinceProgress++; // 演算法第7點：離上次成功到訪過了幾步（＝幾秒）（停留期間照常累加）
+      if (!p.sitShop) p.ticksSinceProgress++; // 演算法第7點：離上次成功到訪過了幾步（＝幾秒）；走慢／擁擠的停留照常累加，坐著不累加
       if (p.ticksSinceProgress < this.giveupSec) stillAlive.push(p);
       else Cell.release(p);
     }
@@ -204,16 +242,18 @@ const Tourist = {
         if (dr !== 0 || dc !== 0) { p.faceDr = dr; p.faceDc = dc; }
         p.row = next[0]; p.col = next[1];
         Cell.slowIfChair(p); // Chair Slowdown Rule
+        Cell.crowdReact(p); // Crowd Rule
       }
 
       trailHeat[p.row][p.col] += TRAIL_STEP_ADD * heatW; // 不衰減、不封頂，見 simulator_setting.md
 
-      const landed = World.stallAtRC[p.row + ',' + p.col];
-      if (landed && landed.shop.state === this.interestState && !p.visited.has(landed.shop.code)) {
-        landed.shop._visitTick = (landed.shop._visitTick || 0) + visitW; // 人氣熱度記在店鋪上，供 VendorNew 用
-        p.visited.add(landed.shop.code);
+      for (const shop of Cell.shopsReach(p.row, p.col)) { // Visit Rule：站在店面前／店面延伸的椅子格也算到訪
+        if (shop.state !== this.interestState || p.visited.has(shop.code)) continue;
+        shop._visitTick = (shop._visitTick || 0) + visitW; // 人氣熱度記在店鋪上，供 VendorNew 用
+        p.visited.add(shop.code);
         p.ticksSinceProgress = 0;
-        Cell.trySit(p, landed.shop); // Chair Seating Rule
+        Cell.trySit(p, shop); // Chair Seating Rule
+        break; // 一步最多到訪一家（同步驟再多家，下一步照樣到訪）
       }
   },
 
