@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>規則資料庫 — 鹽一市場攤位模擬</title>
+<!-- 規則 ↔ 程式碼對照表。資料由 build.js 從 99_config/*.json＋99_website/agents/*.js 產生（data.js）。 -->
+<script>
+// 主題：自動（跟系統）／淺色／深色，選擇存在 localStorage；一律解析成 data-theme=light|dark
+var themePref = 'auto'; try { themePref = localStorage.getItem('theme') || 'auto'; } catch (e) {}
+function applyTheme() { document.documentElement.dataset.theme = themePref === 'auto' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : themePref; }
+applyTheme();
+</script>
+<style>
+:root{color-scheme:light} /* 明確宣告目前是哪種配色，瀏覽器的「強制深色」才不會只反轉一半（HTML 字變白、SVG 底色還是白）*/
+:root{--bg:#f6f8fa;--panel:#fff;--bd:#d0d7de;--tx:#1f2328;--mu:#656d76;--ac:#0969da;--acbg:#ddf4ff;
+--ok:#1a7f37;--okbg:#dafbe1;--warn:#9a6700;--warnbg:#fff8c5;--no:#cf222e;--nobg:#ffebe9;--code:#f6f8fa;--hl:#fff8c5}
+:root[data-theme=dark]{color-scheme:dark;--bg:#0d1117;--panel:#161b22;--bd:#30363d;--tx:#e6edf3;--mu:#8d96a0;--ac:#58a6ff;--acbg:#12263f;
+--ok:#3fb950;--okbg:#12261e;--warn:#d29922;--warnbg:#2d2208;--no:#f85149;--nobg:#2d1214;--code:#0d1117;--hl:#3a2f08}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.55 system-ui,"Noto Sans TC","Microsoft JhengHei",sans-serif}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12.5px}
+header{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--bd);padding:10px 16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+header h1{font-size:16px;margin:0;white-space:nowrap}
+.stats{display:flex;gap:14px;color:var(--mu);font-size:12.5px;flex-wrap:wrap}
+.stats b{color:var(--tx);font-size:15px}
+#q{margin-left:auto;min-width:220px;flex:0 1 320px;padding:6px 10px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx)}
+.wrap{display:grid;grid-template-columns:240px 1fr;min-height:calc(100vh - 56px)}
+aside{border-right:1px solid var(--bd);padding:12px 8px;background:var(--panel);position:sticky;top:56px;height:calc(100vh - 56px);overflow:auto}
+aside h3{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mu);margin:14px 8px 4px}
+.nav{display:flex;justify-content:space-between;align-items:center;padding:5px 8px;border-radius:6px;cursor:pointer;color:var(--tx)}
+.nav:hover{background:var(--bg)}.nav.on{background:var(--acbg);color:var(--ac);font-weight:600}
+.nav.sub{margin-left:16px}.nav small{color:var(--mu);font-weight:400}
+.bar{height:3px;background:var(--bd);border-radius:2px;margin:0 8px 2px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ok)}
+main{padding:16px 20px;max-width:1100px;min-width:0}aside{overflow-x:hidden}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.chip{border:1px solid var(--bd);background:var(--panel);color:var(--tx);border-radius:14px;padding:2px 10px;font-size:12px;cursor:pointer}
+.chip.on{background:var(--ac);border-color:var(--ac);color:#fff}
+.card{background:var(--panel);border:1px solid var(--bd);border-radius:8px;padding:12px 14px;margin-bottom:10px}
+.card.flash{outline:2px solid var(--ac)}
+.card h4{margin:0 0 4px;font-size:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.kind{font-size:11px;color:var(--mu);border:1px solid var(--bd);border-radius:4px;padding:0 5px}
+.pill{font-size:11px;border-radius:10px;padding:0 8px}
+.s-implemented{background:var(--okbg);color:var(--ok)}.s-planned,.s-placeholder{background:var(--warnbg);color:var(--warn)}
+.s-reference,.s-n\/a,.s-none{background:var(--bg);color:var(--mu);border:1px solid var(--bd)}
+.desc{margin:4px 0 8px;white-space:pre-wrap}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0;align-items:baseline}
+.lbl{color:var(--mu);font-size:12px;min-width:44px}
+.param{background:var(--bg);border:1px solid var(--bd);border-radius:4px;padding:0 6px}
+.param em{color:var(--mu);font-style:normal}
+.impl{border:1px solid var(--bd);border-radius:4px;padding:0 7px;background:var(--acbg);color:var(--ac);cursor:pointer}
+.impl.miss{background:var(--nobg);color:var(--no)}
+.link{color:var(--ac);cursor:pointer}
+table{border-collapse:collapse;width:100%;margin:4px 0;font-size:13px}
+td,th{border-top:1px solid var(--bd);padding:3px 8px 3px 0;text-align:left;vertical-align:top}th{color:var(--mu);font-weight:500;font-size:12px}
+details summary{cursor:pointer;color:var(--mu);font-size:12px}
+.file{margin-bottom:14px}.file h4{margin:0 0 2px}.file p{margin:0 0 6px;color:var(--mu);font-size:12.5px}
+.fn{display:inline-block;margin:2px 4px 2px 0;padding:0 7px;border-radius:4px;border:1px solid var(--bd);cursor:pointer}
+.fn.used{background:var(--okbg);color:var(--ok);border-color:transparent}.fn.orph{background:var(--warnbg);color:var(--warn);border-color:transparent}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}.split>div{min-width:0}.split h5{margin:8px 0 0;font-size:13px}.split small{color:var(--mu);font-weight:400}
+.br{margin-left:14px;padding-left:10px;border-left:1px solid var(--bd)}.leaf{padding:2px 0 2px 14px}details>summary{list-style:revert}.tn{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}.why{color:var(--mu);font-size:12px}
+.kind{font-family:ui-monospace,monospace}
+.chips{display:flex;flex-wrap:wrap;gap:8px}.mini{border:2px solid var(--tx);border-radius:3px;padding:3px 10px;cursor:pointer;background:var(--panel)}.mini.on{border-color:#e8336d;background:var(--acbg)}.mini small{color:var(--mu);margin-left:6px}
+@media(max-width:900px){.split{grid-template-columns:1fr}}
+#ov-wrap{max-height:78vh}
+body.solo header,body.solo aside{display:none}body.solo .wrap{display:block;min-height:0}body.solo main{max-width:none;padding:8px 12px}body.solo #ov-wrap{max-height:calc(100vh - 118px)}
+#ov .w{fill:none;stroke:var(--mu);stroke-width:1.4;opacity:.6}#ov .w.ext{stroke:#e8336d;stroke-width:2;opacity:.9}
+#ov .dot{fill:var(--mu);opacity:.6}
+#ov.sel .w,#ov.sel .dot,#ov.sel .ext{opacity:.07}
+#ov.sel .w.on,#ov.sel .dot.on,#ov.sel .ext.on{opacity:1}#ov.sel .w.on{stroke-width:2.8}
+#ov .w.on.out{stroke:#1ea7e1}#ov .w.on.in{stroke:#f08c00}#ov .dot.on.out{fill:#1ea7e1}#ov .dot.on.in{fill:#f08c00}
+#ov.sel .nd,#ov.sel .cn{opacity:.16}#ov.sel .nd.on,#ov.sel .cn.on{opacity:1}
+#ov .nd.me rect{stroke:#e8336d;stroke-width:3.5}#ov .cn.me rect{stroke-width:4}
+.mbox{background:var(--code);border:1px solid var(--bd);border-radius:6px;padding:6px 8px;font:12px/1.45 ui-monospace,Consolas,monospace;white-space:pre;overflow:auto;max-height:11em}
+#theme{position:fixed;right:14px;bottom:14px;z-index:30;box-shadow:0 2px 8px #0003}
+#tip{position:fixed;display:none;z-index:20;max-width:420px;padding:8px 12px;border:1px solid var(--bd);border-radius:6px;background:var(--panel);box-shadow:0 4px 16px #0004;pointer-events:none;font-size:13px;white-space:pre-wrap}
+#tip .tm{color:var(--mu);margin-top:4px;font-size:12px}
+#drawer{position:fixed;top:0;right:0;bottom:0;width:min(1100px,100vw);background:var(--panel);border-left:1px solid var(--bd);box-shadow:-8px 0 24px #0003;transform:translateX(100%);transition:transform .18s;z-index:10;display:flex;flex-direction:column}
+#drawer.open{transform:none}
+#drawer .hd{padding:10px 14px;border-bottom:1px solid var(--bd);display:flex;gap:10px;align-items:center}
+#drawer .hd b{flex:1;word-break:break-all}#drawer .x{cursor:pointer;font-size:18px;color:var(--mu)}
+#drawer .bd{overflow:auto;padding:12px 14px}
+pre{margin:0;background:var(--code);border:1px solid var(--bd);border-radius:6px;padding:8px 0;overflow:auto;font-size:12.5px;line-height:1.5}
+pre span{display:block;padding:0 12px 0 0;white-space:pre}pre span:before{content:attr(data-n);display:inline-block;width:44px;text-align:right;margin-right:12px;color:var(--mu)}
+.empty{color:var(--mu);padding:30px 0;text-align:center}
+@media(max-width:760px){.wrap{grid-template-columns:1fr}aside{position:static;height:auto;border-right:0;border-bottom:1px solid var(--bd)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>規則資料庫</h1>
+  <div class="stats" id="stats"></div>
+  <input id="q" type="search" placeholder="搜尋規則、參數、函式…（按 / 聚焦）">
+</header>
+<div class="wrap">
+  <aside id="side"></aside>
+  <main id="main"></main>
+</div>
+<button id="theme" class="chip" title="切換淺色／深色">…</button>
+<div id="tip"></div>
+<div id="drawer"><div class="hd"><b id="dt"></b><span class="x" id="dx">✕</span></div><div class="bd" id="db"></div></div>
+<script>document.write('<script src="data.js?t=' + Date.now() + '"><' + '/script>'); // 每次載入都讀最新資料，不吃瀏覽器快取</script>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const arr = v => v == null ? [] : Array.isArray(v) ? v : [v];
+const byId = Object.fromEntries(DB.classes.map(c => [c.id, c]));
+// 展平成 item 清單：{cls, kind, name, ...item}
+const items = DB.classes.flatMap(c => ['attributes', 'rules'].flatMap(k =>
+  Object.entries(c[k] || {}).filter(([, v]) => typeof v === 'object').map(([name, v]) => ({ cls: c.id, kind: k === 'rules' ? 'Rule' : 'Attribute', name, ...v, status: v.status || 'none' }))));
+const children = id => DB.classes.filter(c => c.extends === id);
+const roots = DB.classes.filter(c => !c.extends);
+
+const S = { view: 'rules', cls: 'ALL', status: null, q: '', zoom: 1 };
+const STATUSES = ['implemented', 'planned', 'placeholder', 'reference', 'n/a', 'none'];
+
+function hash() {
+  S.solo = false;
+  const [v, c] = decodeURIComponent(location.hash.slice(1)).split('/');
+  if (v === 'diagram' || v === 'tree') { // 類別圖：c 可以是 class（展開它的規則）或 Class.name（畫關係圖）
+    S.view = 'diagram'; S.focus = nodeById[c] ? c : null; S.selCls = byId[c] ? c : nodeById[c]?.cls;
+  } else if (v === 'overview' || v === 'circuit') { S.view = 'overview'; S.sel = c; S.solo = v === 'circuit'; } else if (['code', 'matrix'].includes(v)) S.view = v; else { S.view = 'rules'; S.cls = byId[v] ? v : 'ALL'; }
+  document.body.classList.toggle('solo', S.solo);
+  document.title = S.solo ? '電路總覽 — 規則資料庫' : '規則資料庫 — 鹽一市場攤位模擬';
+  render();
+}
+const go = h => { location.hash = h; };
+
+function stats() {
+  const impl = items.filter(i => i.status === 'implemented').length;
+  const files = Object.values(DB.files).flatMap(f => f.fns), orph = files.filter(f => !f.used).length;
+  const params = items.reduce((n, i) => n + Object.keys(i.params || {}).length, 0);
+  $('#stats').innerHTML = `<span><b>${DB.classes.length}</b> classes</span><span><b>${items.length}</b> 條 attribute/rule</span>
+   <span><b>${impl}</b> 已實作</span><span><b>${params}</b> params</span><span><b>${Object.keys(DB.refs).length}</b> 條對應程式碼</span>
+   <span><b>${orph}</b> / ${files.length} 函式沒有規則</span><span style="opacity:.6">build ${DB.built.slice(0, 16).replace('T', ' ')}</span>`;
+}
+
+function side() {
+  const li = (c, sub) => {
+    const its = items.filter(i => i.cls === c.id), n = its.length, ok = its.filter(i => i.status === 'implemented').length;
+    return `<div class="nav ${sub ? 'sub' : ''} ${S.view === 'rules' && S.cls === c.id ? 'on' : ''}" data-go="${c.id}"><span>${esc(c.id)}</span><small>${ok}/${n}</small></div>
+      <div class="bar ${sub ? 'sub' : ''}"><i style="width:${n ? ok / n * 100 : 0}%"></i></div>${children(c.id).map(k => li(k, true)).join('')}`;
+  };
+  $('#side').innerHTML = `<h3>規則 Rules</h3>
+    <div class="nav ${S.view === 'rules' && S.cls === 'ALL' ? 'on' : ''}" data-go="ALL"><span>全部</span><small>${items.length}</small></div>
+    ${roots.map(c => li(c)).join('')}
+    <h3>總覽</h3><a class="nav" href="#circuit" target="_blank" style="text-decoration:none" title="在新視窗開啟，只有電路圖"><span>電路總覽（新視窗）↗</span></a>
+    <div class="nav ${S.view === 'diagram' ? 'on' : ''}" data-go="diagram"><span>類別圖（分層方框）</span></div>
+    <div class="nav ${S.view === 'matrix' ? 'on' : ''}" data-go="matrix"><span>規則 × 檔案 矩陣</span></div>
+    <h3>程式碼 Code</h3><div class="nav ${S.view === 'code' ? 'on' : ''}" data-go="code"><span>檔案 ↔ 規則對照</span><small>${Object.keys(DB.files).length}</small></div>`;
+}
+
+const match = i => {
+  if (S.status && i.status !== S.status) return false;
+  if (S.q) {
+    const hay = [i.cls, i.name, i.desc, i.impl, i.formula, ...Object.keys(i.params || {}), ...arr(i.reads), ...arr(i.writes)].join(' ').toLowerCase();
+    return S.q.toLowerCase().split(/\s+/).every(t => hay.includes(t));
+  }
+  return S.cls === 'ALL' || i.cls === S.cls;
+};
+
+function card(i) {
+  const id = `${i.cls}.${i.name}`;
+  const params = Object.entries(i.params || {}).map(([k, p]) => `<span class="param" title="${esc(p.note || '')}"><code>${esc(k)}</code> = ${esc(JSON.stringify(p.value))} <em>${esc(p.unit || '')}</em></span>`).join('');
+  const variants = (i.variants || []).length ? `<details open><summary>形容詞子句 ${i.variants.length}</summary><table><tr><th>形容詞</th><th>條件</th><th>效果</th></tr>${i.variants.map(v =>
+    `<tr><td>${esc(v.adjective)}</td><td><code>${esc(v.when)}</code></td><td>${arr(v.effect).map(esc).join('<br>')}${v.value ? '<br>值：' + esc(v.value) : ''}</td></tr>`).join('')}</table></details>` : '';
+  const meta = ['reads', 'writes', 'dispatchedBy', 'replaces', 'ref', 'source', 'candidates'].filter(k => i[k]).map(k => `<div class="row"><span class="lbl">${k}</span>${arr(i[k]).map(x => `<code>${esc(x)}</code>`).join(' ')}</div>`).join('');
+  const impl = (i.implRefs || []).map(k => { const r = DB.refs[k]; return `<span class="impl ${r.code ? '' : 'miss'}" data-ref="${esc(k)}">${esc(r.file)} › ${esc(r.fn)}${esc(r.note)}${r.line ? ' :' + r.line : ''}</span>`; }).join('');
+  return `<div class="card" id="c-${esc(id)}">
+    <h4><span class="kind">${i.kind}</span>${S.cls === 'ALL' || S.q ? `<span class="link" data-go="${esc(i.cls)}">${esc(i.cls)}</span> ·` : ''}<code>${esc(i.name)}</code><span class="pill s-${esc(i.status)}">${esc(i.status)}</span></h4>
+    <div class="desc">${esc(i.desc)}</div>
+    ${i.formula ? `<div class="row"><span class="lbl">公式</span><code>${esc(i.formula)}</code></div>` : ''}${meta}
+    ${params ? `<div class="row"><span class="lbl">params</span>${params}</div>` : ''}${variants}
+    <div class="row"><span class="lbl">程式碼</span>${impl || '<span style="color:var(--mu)">（未對應）</span>'}</div></div>`;
+}
+
+function rules() {
+  const c = byId[S.cls];
+  const head = c && !S.q ? `<h2 style="margin:0 0 2px">${esc(c.id)}${c.extends ? ` <small style="color:var(--mu);font-weight:400">extends <span class="link" data-go="${esc(c.extends)}">${esc(c.extends)}</span></small>` : ''}</h2><p style="margin:0 0 12px;color:var(--mu)">${esc(c.label)}${c.note ? '<br>' + esc(c.note) : ''}</p>` : '';
+  const list = items.filter(match);
+  const chips = STATUSES.map(s => `<span class="chip ${S.status === s ? 'on' : ''}" data-st="${s}">${s} ${items.filter(i => (S.q || S.cls === 'ALL' || i.cls === S.cls) && i.status === s).length}</span>`).join('');
+  $('#main').innerHTML = head + `<div class="filters">${chips}</div>` + (list.map(card).join('') || '<div class="empty">沒有符合的項目</div>');
+}
+
+function code() {
+  const q = S.q.toLowerCase();
+  $('#main').innerHTML = `<p style="color:var(--mu);margin-top:0">綠＝有規則引用，黃＝程式裡有、但沒有任何規則指向它（可能是內部輔助函式，或規則還沒寫進 md/json）。點函式看原始碼與對應規則。</p>` +
+    Object.entries(DB.files).map(([f, d]) => {
+      const fns = d.fns.filter(x => !q || (f + x.fn).toLowerCase().includes(q));
+      return fns.length ? `<div class="file"><h4><code>${esc(f)}</code> <small style="color:var(--mu)">${d.lines} 行</small></h4><p>${esc(d.head)}</p>${fns.map(x => `<span class="fn ${x.used ? 'used' : 'orph'}" data-ref="${esc(f + '#' + x.fn)}">${esc(x.fn)}</span>`).join('')}</div>` : '';
+    }).join('');
+}
+
+// 橫軸＝程式檔，縱軸＝規則；格內數字＝該規則在這個檔案引用了幾個函式，點格子跳到規則卡片
+function matrix() {
+  const q = S.q.toLowerCase();
+  const cols = [...new Set([...Object.keys(DB.files), ...Object.values(DB.refs).map(r => r.file)])];
+  const rows = items.filter(i => !q || `${i.cls}.${i.name}`.toLowerCase().includes(q));
+  const cnt = i => { const m = {}; (i.implRefs || []).forEach(k => { const f = DB.refs[k].file; m[f] = (m[f] || 0) + 1; }); return m; };
+  const tot = {}; let last = '';
+  const body = rows.map(i => {
+    const m = cnt(i), n = Object.keys(m).length;
+    Object.keys(m).forEach(f => tot[f] = (tot[f] || 0) + 1);
+    const sep = i.cls !== last ? `<tr><td colspan="${cols.length + 2}" style="background:var(--bg);font-weight:600">${esc(i.cls)}</td></tr>` : '';
+    last = i.cls;
+    return sep + `<tr><td><span class="link" data-jump="${esc(i.cls + '.' + i.name)}"><code>${esc(i.name)}</code></span></td>
+      ${cols.map(f => `<td style="text-align:center;${m[f] ? 'background:var(--acbg);color:var(--ac)' : ''}">${m[f] ? '●' + (m[f] > 1 ? m[f] : '') : ''}</td>`).join('')}
+      <td style="text-align:center;${n > 1 ? 'color:var(--warn);font-weight:600' : n ? '' : 'color:var(--no)'}">${n}</td></tr>`;
+  }).join('');
+  $('#main').innerHTML = `<p style="color:var(--mu);margin-top:0">●＝這條規則的實作用到該檔案（數字＝函式個數）。最右欄＝涉及檔案數：黃＝散在多個檔案、紅＝沒有對應程式碼。點規則名跳到卡片。</p>
+    <div style="overflow:auto"><table><tr><th>規則</th>${cols.map(f => `<th style="text-align:center;writing-mode:vertical-rl;white-space:nowrap">${esc(f)}</th>`).join('')}<th>檔案數</th></tr>${body}
+    <tr><th>各檔案被引用規則數</th>${cols.map(f => `<th style="text-align:center">${tot[f] || 0}</th>`).join('')}<th></th></tr></table></div>`;
+}
+
+// ---- 關係樹 ----
+// 關係來源：①json 明寫的 reads/writes/dispatchedBy ②描述／條件／效果文字裡提到另一個規則或屬性的名字 ③用到別人 params 的名字。
+// ponytail: ②是字串比對，可能多抓或漏抓；要精準就把關係明寫進 json 的 reads 欄位。
+const nodes = items.map(i => ({ ...i, id: i.cls + '.' + i.name }));
+// 同 class 的 attribute 與 rule 同名（例如 VendorOld.fixed）：attribute 的 id 加 #A，不讓兩個節點共用一個 id
+nodes.forEach(n => { if (n.kind === 'Attribute' && nodes.some(m => m !== n && m.id === n.id)) n.id += '#A'; });
+const nodeById = Object.fromEntries(nodes.map(n => [n.id, n]));
+const anc = cls => { const o = []; for (let c = byId[cls]; c; c = byId[c.extends]) o.push(c.id); return o; }; // 自己＋祖先
+const resolve = (name, from) => { // 同名時優先取同 class／祖先的
+  const m = nodes.filter(x => x.name === name); if (m.length < 2) return m[0];
+  const a = anc(from); return m.filter(x => a.includes(x.cls)).sort((x, y) => a.indexOf(x.cls) - a.indexOf(y.cls) || (x.kind === 'Rule' ? 0 : 1) - (y.kind === 'Rule' ? 0 : 1))[0]; // 同 class 同名時取 Rule
+};
+const owner = {}; nodes.forEach(n => Object.keys(n.params || {}).forEach(p => owner[p] = n));
+const word = (w, t) => new RegExp('(?<![A-Za-z0-9_])' + w + '(?![A-Za-z0-9_])', 'i').test(t); // 不分大小寫（「Fixed Rule」要能對到 fixed）
+const ref = (r, from) => nodeById[r] || resolve(r.split('.').pop(), from); // reads／writes 寫完整 Class.name 就精準對到，否則照名字找
+const edges = [];
+(() => {
+  const add = (f, t, why) => { if (t && t !== f && !edges.some(e => e.f === f.id && e.t === t.id)) edges.push({ f: f.id, t: t.id, why }); };
+  for (const n of nodes) {
+    const t = [n.desc, n.formula, ...(n.variants || []).flatMap(v => [v.when, v.adjective, v.value, ...arr(v.effect)])].filter(Boolean).join(' ');
+    arr(n.reads).forEach(r => add(n, ref(r, n.cls), '讀取'));
+    arr(n.writes).forEach(r => add(n, ref(r, n.cls), '寫入'));
+    if (n.dispatchedBy) add(n, resolve(n.dispatchedBy, n.cls), '依它分派');
+    for (const m of nodes) if (m !== n && m.name.length >= 5 && word(m.name, t) && resolve(m.name, n.cls) === m) add(n, m, '提到');
+    for (const [p, o] of Object.entries(owner)) if (o !== n && word(p, t)) add(n, o, '用到參數 ' + p);
+  }
+})();
+const deg = id => [edges.filter(e => e.f === id).length, edges.filter(e => e.t === id).length];
+
+function treeRow(n, why) {
+  return `<span class="tn"><span class="kind">${n.kind === 'Rule' ? 'R' : 'A'}</span><span class="link" data-focus="${esc(n.id)}" data-tip="${esc(n.id)}"><code>${esc(n.id)}</code></span>
+    <span class="pill s-${esc(n.status)}">${esc(n.status)}</span>${why ? `<em class="why">${esc(why)}</em>` : ''}<span class="link" data-jump="${esc(n.id)}" title="看規則卡片">↗</span></span>`;
+}
+// ---- 類別圖：仿 Interface / class / Sub-class 分層方框 ----
+// 上層藍框＝Cell 的屬性（被別的 class 引用的才畫）；其下依繼承深度一層一層；黑線＝extends，藍線＝該 class 的規則與這個 Cell 屬性有關（用上面「關係」的 edges）。
+function diagram() {
+  const cls = DB.classes.filter(c => c.id !== 'Cell'), kids = id => cls.filter(c => c.extends === id);
+  const depth = c => c.extends && byId[c.extends] ? 1 + depth(byId[c.extends]) : 0;
+  const leaves = [], X = {};
+  const place = c => { const k = kids(c.id); if (!k.length) X[c.id] = leaves.push(c.id) - 1; else { k.forEach(place); X[c.id] = k.reduce((s, x) => s + X[x.id], 0) / k.length; } };
+  cls.filter(c => !c.extends).forEach(place);
+  // 藍框：Cell 屬性 → 連到哪些 class
+  const link = {};
+  for (const e of edges) { const a = nodeById[e.f], b = nodeById[e.t]; if ((a.cls === 'Cell') === (b.cls === 'Cell')) continue;
+    const [cell, other] = a.cls === 'Cell' ? [a, b] : [b, a]; if (cell.kind === 'Attribute') (link[cell.id] ??= new Set()).add(other.cls); }
+  const mean = id => [...link[id]].reduce((s, c) => s + X[c], 0) / link[id].size;
+  const ifs = Object.keys(link).sort((a, b) => mean(a) - mean(b));
+  const n = leaves.length, W = Math.max(n * 210, ifs.length * 176) + 40, maxD = Math.max(...cls.map(depth));
+  const cx = x => W / 2 + (x - (n - 1) / 2) * 210, ix = j => W / 2 + (j - (ifs.length - 1) / 2) * 176;
+  const BH = 54, bandY = l => 20 + l * 150, boxY = l => bandY(l) + 32, H = bandY(maxD + 2);
+  const pos = {}; cls.forEach(c => pos[c.id] = { x: cx(X[c.id]), l: depth(c) + 1 });
+  ifs.forEach((id, j) => pos[id] = { x: ix(j), l: 0 });
+  const line = (a, b, color) => `<line x1="${a.x}" y1="${boxY(a.l) + BH}" x2="${b.x}" y2="${boxY(b.l)}" style="stroke:${color}" stroke-width="3.5"/>`;
+  const labels = ['Interface（Cell 的屬性）', 'class', ...Array.from({ length: maxD }, (_, i) => 'Sub-class' + (maxD > 1 ? ' ' + (i + 1) : ''))];
+  const bands = labels.map((t, l) => `<rect x="20" y="${bandY(l)}" width="${W - 40}" height="120" rx="6" fill="none" style="stroke:#e8336d" stroke-width="2"/>
+    <text x="30" y="${bandY(l) + 18}" style="fill:#e8336d" font-weight="700" font-size="14">${esc(t)}</text>`).join('');
+  const lines = cls.filter(c => c.extends).map(c => line(pos[c.extends], pos[c.id], 'var(--tx)')).join('') +
+    ifs.flatMap(id => [...link[id]].map(c => line(pos[id], pos[c], '#1ea7e1'))).join('');
+  const box = (id, label, sub, color, go) => { const p = pos[id], w = Math.max(150, label.length * 10 + 24);
+    return `<g ${go} data-tip="${esc(id)}" style="cursor:pointer"><rect x="${p.x - w / 2}" y="${boxY(p.l)}" width="${w}" height="${BH}" rx="3" style="fill:var(--panel);stroke:${color}" stroke-width="4.5"/>
+      <text x="${p.x}" y="${boxY(p.l) + 24}" text-anchor="middle" font-family="ui-monospace,Consolas,monospace" font-size="16" font-weight="600" style="fill:${color === '#1ea7e1' ? color : 'var(--tx)'}">${esc(label)}</text>
+      <text x="${p.x}" y="${boxY(p.l) + 43}" text-anchor="middle" font-size="11" style="fill:var(--mu)">${esc(sub)}</text></g>`; };
+  const boxes = cls.map(c => { const its = nodes.filter(x => x.cls === c.id); return box(c.id, c.id, `${its.filter(x => x.kind === 'Rule').length} rules · ${its.filter(x => x.kind === 'Attribute').length} attrs`, S.selCls === c.id ? '#e8336d' : 'var(--tx)', `data-focus="${esc(c.id)}"`); }).join('') +
+    ifs.map(id => box(id, nodeById[id].name, [...link[id]].join(' · '), '#1ea7e1', `data-focus="${esc(id)}"`)).join('');
+  $('#main').innerHTML = `<p style="color:var(--mu);margin-top:0">白線＝繼承（extends）；藍線＝該 class 的規則讀／提到這個 Cell 屬性。</p>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:${Math.min(W, 900)}px;height:auto">${bands}${lines}${boxes}</svg>` + below();
+}
+
+// 類別圖下方：①選了 class → 它的規則／屬性小方框 ②選了規則 → 關係方框圖 ③都沒選 → 孤立規則
+function below() {
+  let h = '';
+  const sel = S.selCls && byId[S.selCls];
+  if (sel) h += `<h3 style="margin:18px 0 6px">${esc(sel.id)} 的屬性與規則 <small style="color:var(--mu);font-weight:400">R＝Rule、A＝Attribute；→參考數 ←被參考數</small></h3><div class="chips">` +
+    nodes.filter(n => n.cls === sel.id).map(n => { const [o, i] = deg(n.id);
+      return `<div class="mini ${S.focus === n.id ? 'on' : ''}" data-focus="${esc(n.id)}" data-tip="${esc(n.id)}"><span class="kind">${n.kind === 'Rule' ? 'R' : 'A'}</span> <b>${esc(n.name)}</b><small>→${o} ←${i}</small></div>`; }).join('') + '</div>';
+  if (S.focus) return h + relation(nodeById[S.focus]) + mapTable(nodeById[S.focus]);
+  const iso = nodes.filter(n => !deg(n.id)[0] && !deg(n.id)[1]);
+  const expected = n => ['reference', 'n/a', 'planned'].includes(n.status); // 這幾種 status 本來就不會有關係
+  const list = ns => ns.map(n => `<div class="card" style="padding:8px 12px">${treeRow(n)}<div class="desc" style="margin:2px 0 0">${esc((n.desc || '').slice(0, 100))}</div></div>`).join('') || '<div class="empty">沒有</div>';
+  return h + `<h3 style="margin:22px 0 6px">孤立規則（沒有任何關係）<small style="color:var(--mu);font-weight:400"> ${iso.length} / ${nodes.length}</small></h3>
+    <h5 style="margin:10px 0 4px">預期孤立：status 為 reference／n/a／planned（${iso.filter(expected).length}）</h5>${list(iso.filter(expected))}
+    <h5 style="margin:14px 0 4px">需要檢查：可能是文字沒寫到關聯（${iso.filter(n => !expected(n)).length}）<small style="color:var(--mu);font-weight:400"> 要補關係，在該規則 JSON 加 reads／writes（寫 "Class.name"）</small></h5>${list(iso.filter(n => !expected(n)))}`;
+}
+
+// JSON ↔ JS 對照表：選中的規則＋它直接相關（它參考的／參考它的）的規則，每列左邊是 JSON 裡怎麼寫、右邊是對應的 JS。
+function mapTable(f) {
+  const seen = new Set(), rel = [{ n: f, why: '選中' },
+    ...edges.filter(e => e.f === f.id).map(e => ({ n: nodeById[e.t], why: '它參考 · ' + e.why })),
+    ...edges.filter(e => e.t === f.id).map(e => ({ n: nodeById[e.f], why: '參考它 · ' + e.why }))].filter(x => !seen.has(x.n.id) && seen.add(x.n.id));
+  const jsonOf = n => { // 只挑跟程式有關的欄位，完整 JSON 點程式碼標籤看右側面板
+    const o = { status: n.status, impl: n.impl, reads: n.reads, writes: n.writes, dispatchedBy: n.dispatchedBy };
+    if (n.params) o.params = Object.fromEntries(Object.entries(n.params).map(([k, p]) => [k, p.value]));
+    return JSON.stringify(o, null, 2);
+  };
+  const jsOf = n => (n.implRefs || []).map(k => { const r = DB.refs[k], lines = (r.code || '').split('\n');
+    return `<div style="margin-bottom:6px"><span class="impl ${r.code ? '' : 'miss'}" data-ref="${esc(k)}" data-rule="${esc(n.id)}">${esc(r.file)} › ${esc(r.fn)}${r.line ? ' :' + r.line : ''}</span>
+      ${r.code ? `<div class="mbox">${esc(lines.slice(0, 8).join('\n'))}${lines.length > 8 ? '\n…（共 ' + lines.length + ' 行，點上方標籤看全部）' : ''}</div>` : ''}</div>`; }).join('') || `<span style="color:var(--mu)">（沒有對應程式碼，status：${esc(n.status)}）</span>`;
+  return `<h3 style="margin:22px 0 4px">JSON ↔ JS 對照表 <small style="color:var(--mu);font-weight:400">選中的規則與它直接相關的規則；點程式碼標籤看完整 JSON／JS 左右對照</small></h3>
+  <div style="overflow:auto"><table style="min-width:900px"><tr><th style="width:24%">規則（關係）</th><th style="width:30%">JSON（99_config）</th><th>JS（99_website）</th></tr>
+  ${rel.map(({ n, why }) => `<tr style="${n.id === f.id ? 'background:var(--acbg)' : ''}"><td>${treeRow(n)}<div class="why">${esc(why)}</div></td><td><div class="mbox">${esc(jsonOf(n))}</div></td><td>${jsOf(n)}</td></tr>`).join('')}</table></div>`;
+}
+
+// 關係方框圖：中間＝選的規則；左邊＝它參考的（往左最多 2 層）；右邊＝參考它的（往右最多 2 層）。每個節點只出現一次，連到先找到它的上一層。
+function relation(f) {
+  const bfs = (dir, taken = []) => { // taken＝另一側已經畫過的節點，不重複畫（雙向的只留在「它參考的」那側）
+    const lv = [[f.id]], seen = new Set([f.id, ...taken]), par = {};
+    for (let d = 1; d <= 2; d++) {
+      const nx = [];
+      for (const u of lv[d - 1]) for (const e of edges) {
+        if ((dir === 'out' ? e.f : e.t) !== u) continue;
+        const v = dir === 'out' ? e.t : e.f;
+        if (!seen.has(v)) { seen.add(v); par[v] = { u, why: e.why }; nx.push(v); }
+      }
+      if (!nx.length) break; lv.push(nx);
+    }
+    return { lv, par };
+  };
+  const out = bfs('out'), inn = bfs('in', Object.keys(out.par));
+  const both = id => edges.some(e => e.f === id && e.t === f.id) && edges.some(e => e.f === f.id && e.t === id);
+  const cols = [...out.lv.slice(1).reverse(), [f.id], ...inn.lv.slice(1)], fc = out.lv.length - 1; // fc＝焦點所在欄
+  const CW = 250, BW = 210, BH = 48, GAP = 20, top = 36;
+  const rows = Math.max(...cols.map(c => c.length)), W = cols.length * CW, H = top + rows * (BH + GAP);
+  const pos = {};
+  cols.forEach((c, ci) => c.forEach((id, ri) => { pos[id] = { x: ci * CW + CW / 2, y: top + (rows - c.length) * (BH + GAP) / 2 + ri * (BH + GAP) }; }));
+  const heads = cols.map((_, ci) => ci === fc ? '選中' : ci < fc ? `它參考的（${fc - ci} 層）` : `參考它的（${ci - fc} 層）`);
+  const lines = [[out, '#1ea7e1'], [inn, '#f08c00']].flatMap(([s, color]) => Object.entries(s.par).map(([v, p]) => {
+    const a = pos[p.u], b = pos[v], sx = a.x + (b.x < a.x ? -BW / 2 : BW / 2), ex = b.x + (b.x < a.x ? BW / 2 : -BW / 2), mx = (sx + ex) / 2;
+    return `<path d="M${sx},${a.y + BH / 2} C${mx},${a.y + BH / 2} ${mx},${b.y + BH / 2} ${ex},${b.y + BH / 2}" fill="none" style="stroke:${color}" stroke-width="3"><title>${esc(p.why)}</title></path>`;
+  })).join('');
+  const boxes = Object.entries(pos).map(([id, p]) => { const n = nodeById[id], cell = n.cls === 'Cell', me = id === f.id;
+    const why = out.par[id]?.why || inn.par[id]?.why || '';
+    return `<g data-focus="${esc(id)}" data-tip="${esc(id)}" style="cursor:pointer">
+      <rect x="${p.x - BW / 2}" y="${p.y}" width="${BW}" height="${BH}" rx="3" style="fill:${me ? 'var(--acbg)' : 'var(--panel)'};stroke:${cell ? '#1ea7e1' : 'var(--tx)'}" stroke-width="${me ? 5 : 3.5}"/>
+      <text x="${p.x}" y="${p.y + 20}" text-anchor="middle" font-family="ui-monospace,Consolas,monospace" font-size="13.5" font-weight="600" style="fill:${cell ? '#1ea7e1' : 'var(--tx)'}">${esc(n.name)}</text>
+      <text x="${p.x}" y="${p.y + 38}" text-anchor="middle" font-size="11" style="fill:var(--mu)">${n.kind === 'Rule' ? 'R' : 'A'} · ${esc(n.cls)}${why ? ' · ' + esc(why) : ''}${both(id) ? ' · 雙向' : ''}</text></g>`; }).join('');
+  return `<h3 style="margin:22px 0 4px">${treeRow(f)}</h3><p style="margin:0 0 8px;color:var(--mu)">${esc(f.desc || '')}</p>
+    <p style="margin:0 0 6px;color:var(--mu)"><b style="color:#1ea7e1">藍線</b>＝它依賴／讀取／提到的；<b style="color:#f08c00">橘線</b>＝依賴／讀取／提到它的；藍框＝Cell 屬性。點方框換成以它為中心。</p>
+    ${cols.length === 1 ? '<div class="empty">這條規則沒有任何關係</div>' : ''}
+    <div style="overflow:auto"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:${Math.min(W, 800)}px;height:auto">
+      ${heads.map((t, ci) => `<text x="${ci * CW + CW / 2}" y="20" text-anchor="middle" font-size="12" font-weight="700" style="fill:#e8336d">${esc(t)}</text>`).join('')}${lines}${boxes}</svg></div>`;
+}
+
+// ---- 電路總覽：全部 class／屬性／規則一張圖，導線橫平豎直 ----
+// 版面：每個 class 一欄（欄與欄之間是走線通道 gutter）。導線只有水平＋垂直線段：
+//   同欄／相鄰欄：從節點側邊出線 → 通道裡的垂直軌道 → 進目標節點側邊；
+//   跨欄：出線 → 通道垂直軌道 → 往上走到頂部水平走線層 → 橫向跨欄 → 目標通道垂直軌道 → 進目標。
+// 軌道／走線層用 left-edge 區間配置，互不重疊；但這張圖是非平面圖，不可能完全不交叉，
+// 交叉處用電路圖慣用的「跳線小拱橋」表示（水平線跨過垂直線）。
+// 欄順序：窮舉排列，讓「連線跨過的欄數總和」最小（extends 加權 3）。
+// 繼承（extends）畫在容器下方，粉紅色；點任何東西：相關的亮、其他暗（只切 class，不重畫）。
+function overview() {
+  const CW = 200, HD = 34, NH = 26, NG = 8, PAD = 10, TS = 6, LS = 8, R = 3;
+  const clsIds = DB.classes.map(c => c.id);
+  // 1. 欄順序
+  const wt = {}, bump = (a, b, w) => { if (a !== b) { const k = [a, b].sort().join('|'); wt[k] = (wt[k] || 0) + w; } };
+  edges.forEach(e => bump(nodeById[e.f].cls, nodeById[e.t].cls, 1));
+  DB.classes.forEach(c => c.extends && bump(c.id, c.extends, 3));
+  const pairs = Object.entries(wt).map(([k, w]) => [...k.split('|'), w]);
+  let order = clsIds, bestCost = Infinity;
+  const perm = (a, k = 0) => {
+    if (k === a.length) {
+      const p = Object.fromEntries(a.map((c, i) => [c, i])), cost = pairs.reduce((s, [x, y, w]) => s + w * Math.abs(p[x] - p[y]), 0);
+      if (cost < bestCost) { bestCost = cost; order = [...a]; } return;
+    }
+    for (let i = k; i < a.length; i++) { [a[k], a[i]] = [a[i], a[k]]; perm(a, k + 1); [a[k], a[i]] = [a[i], a[k]]; }
+  };
+  perm([...clsIds]); // ponytail: 8 個 class 窮舉 8! 次；class 超過 ~9 個要改啟發式
+  const N = order.length, col = Object.fromEntries(order.map((c, i) => [c, i]));
+  const members = Object.fromEntries(order.map(c => [c, nodes.filter(n => n.cls === c)]));
+  const idx = {}; order.forEach(c => members[c].forEach((n, i) => idx[n.id] = i));
+  // 層級：繼承深度。根（Human／Vendor／Cell）在最上排，子類往下排；每一排高度取該排最高的 class
+  const depth = c => byId[c].extends && byId[byId[c].extends] ? 1 + depth(byId[c].extends) : 0;
+  const tier = Object.fromEntries(order.map(c => [c, depth(c)])), T = Math.max(...Object.values(tier)) + 1;
+  const tierCH = Array.from({ length: T }, (_, t) => HD + PAD + Math.max(0, ...order.filter(c => tier[c] === t).map(c => members[c].length)) * (NH + NG));
+
+  // 2. 每條邊走哪個通道、哪一側
+  const E = edges.map((e, k) => {
+    const f = nodeById[e.f], t = nodeById[e.t], ci = col[f.cls], cj = col[t.cls], d = Math.sign(cj - ci);
+    const x = { k, e, f, t, ci, cj };
+    if (ci === cj) Object.assign(x, { kind: 'same', gs: ci + 1, gt: ci + 1, sf: 'R', st: 'R' });
+    else if (Math.abs(ci - cj) === 1) Object.assign(x, { kind: 'adj', gs: Math.max(ci, cj), gt: Math.max(ci, cj), sf: d > 0 ? 'R' : 'L', st: d > 0 ? 'L' : 'R' });
+    else Object.assign(x, { kind: 'long', gs: d > 0 ? ci + 1 : ci, gt: d > 0 ? cj : cj + 1, sf: d > 0 ? 'R' : 'L', st: d > 0 ? 'L' : 'R' });
+    return x;
+  });
+  // 3. 頂部走線層（只給跨欄的邊）
+  const laneEnd = [];
+  E.filter(x => x.kind === 'long').sort((a, b) => Math.min(a.gs, a.gt) - Math.min(b.gs, b.gt)).forEach(x => {
+    const lo = Math.min(x.gs, x.gt), hi = Math.max(x.gs, x.gt);
+    let l = laneEnd.findIndex(end => end < lo); if (l < 0) l = laneEnd.push(0) - 1; laneEnd[l] = hi; x.lane = l;
+  });
+  const LT = 24 + laneEnd.length * LS, laneY = l => LT - 14 - l * LS;
+  // 繼承線的走線層：在「父類那一排」與「下一排」之間，所以先決定每排之間要留多高
+  const byPar = {}; DB.classes.filter(c => c.extends && col[c.extends] !== undefined).forEach(c => (byPar[c.extends] ??= []).push(c.id));
+  const bEnd = Array.from({ length: T }, () => []);
+  const bracket = Object.entries(byPar).sort((a, b) => Math.min(col[a[0]], ...a[1].map(c => col[c])) - Math.min(col[b[0]], ...b[1].map(c => col[c]))).map(([p, cs]) => {
+    const lo = Math.min(col[p], ...cs.map(c => col[c])), hi = Math.max(col[p], ...cs.map(c => col[c])), be = bEnd[tier[p]];
+    let l = be.findIndex(end => end < lo); if (l < 0) l = be.push(0) - 1; be[l] = hi; return { p, cs, l };
+  });
+  const tierTop = []; let yy = LT;
+  for (let t = 0; t < T; t++) { tierTop[t] = yy; yy += tierCH[t] + (t < T - 1 ? 40 + bEnd[t].length * LS : 0); }
+  const H = yy + 20, cTop = c => tierTop[tier[c]], cH = c => tierCH[tier[c]];
+  const py = n => cTop(n.cls) + HD + PAD + idx[n.id] * (NH + NG) + NH / 2;
+  // 4. 各通道的垂直軌道（區間不重疊的共用同一軌）
+  const items = [];
+  E.forEach(x => {
+    const a = py(x.f), b = py(x.t);
+    if (x.kind === 'long') { items.push({ x, g: x.gs, p: 's', y1: laneY(x.lane), y2: a }, { x, g: x.gt, p: 't', y1: laneY(x.lane), y2: b }); }
+    else items.push({ x, g: x.gs, p: 's', y1: Math.min(a, b), y2: Math.max(a, b) });
+  });
+  const tcount = Array(N + 1).fill(0), last = {};
+  items.sort((a, b) => a.y1 - b.y1).forEach(it => {
+    const arr2 = last[it.g] ??= []; let t = arr2.findIndex(end => end + 5 < it.y1); if (t < 0) t = arr2.push(0) - 1; arr2[t] = it.y2; it.t = t; tcount[it.g] = Math.max(tcount[it.g], t + 1);
+  });
+  const GW = tcount.map(c => 28 + c * TS), gstart = []; let acc = 0;
+  for (let g = 0; g <= N; g++) { gstart[g] = acc; acc += GW[g] + (g < N ? CW : 0); }
+  const W = acc, colx = i => gstart[i] + GW[i], trackX = it => gstart[it.g] + 14 + it.t * TS;
+  const portX = (n, side) => colx(col[n.cls]) + (side === 'R' ? CW - PAD : PAD);
+  // 5. 折線
+  for (const it of items) it.x[it.p === 's' ? 'ts' : 'tt'] = trackX(it);
+  for (const x of E) {
+    const a = py(x.f), b = py(x.t), fx = portX(x.f, x.sf), tx = portX(x.t, x.st);
+    x.pts = x.kind === 'long' ? [[fx, a], [x.ts, a], [x.ts, laneY(x.lane)], [x.tt, laneY(x.lane)], [x.tt, b], [tx, b]] : [[fx, a], [x.ts, a], [x.ts, b], [tx, b]];
+  }
+  // 6. 繼承線：父類下緣 → 兩排之間的走線層 → 子類上緣（空心三角在父類那端）
+  const cxm = i => colx(i) + CW / 2;
+  bracket.forEach(b => { b.pb = cTop(b.p) + cH(b.p); b.y = b.pb + 24 + b.l * LS; });
+  const extPaths = bracket.flatMap(b => b.cs.map(c => ({ p: b.p, c, pts: [[cxm(col[b.p]), b.pb + 10], [cxm(col[b.p]), b.y], [cxm(col[c]), b.y], [cxm(col[c]), cTop(c)]] })));
+  // 7. 跳線：水平線段跨過別條邊的垂直線段時畫小拱橋
+  const segs = (pts, k) => pts.slice(1).map((q, i) => ({ k, a: pts[i], b: q }));
+  const all = [...E.flatMap(x => segs(x.pts, x.k)), ...extPaths.flatMap((x, i) => segs(x.pts, 'x' + i))];
+  const vs = all.filter(s => s.a[0] === s.b[0]).map(s => ({ k: s.k, x: s.a[0], y1: Math.min(s.a[1], s.b[1]), y2: Math.max(s.a[1], s.b[1]) }));
+  const pathOf = (pts, k) => {
+    let d = `M${pts[0][0]},${pts[0][1]}`;
+    for (let i = 1; i < pts.length; i++) {
+      const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+      if (y0 === y1 && x0 !== x1) {
+        const dir = Math.sign(x1 - x0), lo = Math.min(x0, x1), hi = Math.max(x0, x1);
+        const xsC = vs.filter(v => v.k !== k && v.x > lo + R + 2 && v.x < hi - R - 2 && y0 > v.y1 + 1 && y0 < v.y2 - 1).map(v => v.x).sort((a, b) => dir * (a - b));
+        let prev = -1e9;
+        for (const x of xsC) { if (Math.abs(x - prev) < 2 * R + 1) continue; prev = x; d += `L${x - dir * R},${y0}a${R},${R} 0 0 ${dir > 0 ? 1 : 0} ${2 * dir * R},0`; }
+      }
+      d += `L${x1},${y1}`;
+    }
+    return d;
+  };
+  // 8. 輸出 SVG
+  const sidc = n => n.cls === 'Cell' ? '#1ea7e1' : 'var(--tx)';
+  const conts = order.map(c => `<g class="cn" data-sel="${esc(c)}" data-tip="${esc(c)}" style="cursor:pointer"><rect x="${colx(col[c])}" y="${cTop(c)}" width="${CW}" height="${cH(c)}" rx="6" style="fill:var(--panel);stroke:#e8336d" stroke-width="2"/>
+    <text x="${colx(col[c]) + 10}" y="${cTop(c) + 22}" font-size="14" font-weight="700" style="fill:#e8336d">${esc(c)}</text>
+    <text x="${colx(col[c]) + CW - 10}" y="${cTop(c) + 22}" text-anchor="end" font-size="11" style="fill:var(--mu)">${members[c].length}</text></g>`).join('');
+  const wires = E.map(x => `<path class="w" data-k="${x.k}" d="${pathOf(x.pts, x.k)}"><title>${esc(x.f.id)} → ${esc(x.t.id)}（${esc(x.e.why)}）</title></path>`).join('') +
+    extPaths.map((x, i) => `<path class="w ext" data-ext="${esc(x.p)}|${esc(x.c)}" d="${pathOf(x.pts, 'x' + i)}"/>`).join('') +
+    bracket.map(b => { const x = cxm(col[b.p]); return `<polygon class="ext" data-ext="${esc(b.p)}|*" points="${x},${b.pb} ${x - 6},${b.pb + 10} ${x + 6},${b.pb + 10}" style="fill:var(--panel);stroke:#e8336d" stroke-width="1.6"/>`; }).join('');
+  const dots = E.map(x => `<circle class="dot" data-k="${x.k}" cx="${x.pts[0][0]}" cy="${x.pts[0][1]}" r="2.6"/><circle class="dot" data-k="${x.k}" cx="${x.pts[x.pts.length - 1][0]}" cy="${x.pts[x.pts.length - 1][1]}" r="2.6"/>`).join('');
+  const boxes = nodes.map(n => { const x0 = colx(col[n.cls]) + PAD, y0 = py(n) - NH / 2, dashed = ['reference', 'n/a', 'planned'].includes(n.status) ? ' stroke-dasharray="4 3"' : '';
+    return `<g class="nd" data-sel="${esc(n.id)}" data-tip="${esc(n.id)}" style="cursor:pointer"><rect x="${x0}" y="${y0}" width="${CW - 2 * PAD}" height="${NH}" rx="3" style="fill:var(--panel);stroke:${sidc(n)}" stroke-width="2"${dashed}/>
+      <text x="${x0 + 6}" y="${y0 + 17}" font-size="10" font-weight="700" style="fill:var(--mu)">${n.kind === 'Rule' ? 'R' : 'A'}</text>
+      <text x="${x0 + 20}" y="${y0 + 17}" font-family="ui-monospace,Consolas,monospace" font-size="12.5" font-weight="600" style="fill:${sidc(n)}">${esc(n.name)}</text></g>`; }).join('');
+
+  $('#main').innerHTML = `<div class="filters"><b>電路總覽</b>
+      <span class="chip" data-zoom="-">縮小</span><span class="chip" data-zoom="+">放大</span><span class="chip" data-zoom="fit">符合寬度</span>
+      <span style="color:var(--mu)">點任何一個 class／屬性／規則：相關的亮起來，其他暗下去；點空白處取消。<b style="color:#1ea7e1">藍線</b>＝它參考的，<b style="color:#f08c00">橘線</b>＝參考它的，粉紅＝繼承（空心三角＝父類），虛線框＝reference／n/a／planned，藍框＝Cell 屬性，線上小拱橋＝跨過別條線（不相連）。</span></div>
+    <div id="ov-info" style="min-height:3.2em;margin:4px 0 8px"></div>
+    <div id="ov-wrap" style="overflow:auto;border:1px solid var(--bd);border-radius:8px;background:var(--panel)"><svg id="ov" viewBox="0 0 ${W} ${H}" width="${W * S.zoom}" height="${H * S.zoom}" data-w="${W}">${conts}${wires}${dots}${boxes}</svg></div>`;
+
+  // 滑鼠滾輪縮放：以游標位置為中心（滾輪在圖上不再捲動頁面，要捲頁面請把游標移出圖外）
+  const wrap = $('#ov-wrap'), svg = $('#ov');
+  S.ovZoom = (z, cx = wrap.clientWidth / 2, cy = wrap.clientHeight / 2) => { // cx,cy＝縮放中心在 wrap 內的位置
+    z = Math.max(0.15, Math.min(3, z)); const k = z / S.zoom, sx = wrap.scrollLeft + cx, sy = wrap.scrollTop + cy;
+    S.zoom = z; svg.setAttribute('width', W * z); svg.setAttribute('height', H * z);
+    wrap.scrollLeft = sx * k - cx; wrap.scrollTop = sy * k - cy;
+  };
+  wrap.addEventListener('wheel', e => { e.preventDefault(); const r = wrap.getBoundingClientRect(); S.ovZoom(S.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+  // 按住拖曳平移：移動超過 4px 才算拖曳，放開後那一下 click 要吃掉，不然拖完會誤選取
+  wrap.style.cursor = 'grab'; wrap.style.userSelect = 'none';
+  wrap.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    const x0 = e.clientX, y0 = e.clientY, sl = wrap.scrollLeft, st = wrap.scrollTop; let moved = false;
+    const mv = m => { if (!moved && Math.hypot(m.clientX - x0, m.clientY - y0) < 4) return; moved = true; wrap.style.cursor = 'grabbing'; wrap.scrollLeft = sl - (m.clientX - x0); wrap.scrollTop = st - (m.clientY - y0); };
+    const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); wrap.style.cursor = 'grab'; if (moved) { S.dragged = true; setTimeout(() => S.dragged = false); } };
+    addEventListener('mousemove', mv); addEventListener('mouseup', up);
+  });
+
+  // 9. 點選：只切 class，不重畫
+  S.ovApply = id => {
+    const svg = $('#ov'); if (!svg) return;
+    S.sel = id && (byId[id] || nodeById[id]) ? id : null;
+    const isCls = S.sel && byId[S.sel], mine = !S.sel ? new Set() : isCls ? new Set(nodes.filter(n => n.cls === S.sel).map(n => n.id)) : new Set([S.sel]);
+    const on = new Set(mine), wOn = {}, cOn = new Set();
+    E.forEach(x => { const a = mine.has(x.e.f), b = mine.has(x.e.t); if (a || b) { wOn[x.k] = a ? 'out' : 'in'; on.add(x.e.f); on.add(x.e.t); } });
+    on.forEach(id2 => cOn.add(nodeById[id2].cls));
+    const extOn = p => isCls && (p[0] === S.sel || p[1] === S.sel || p[1] === '*' && p[0] === S.sel);
+    if (isCls) DB.classes.forEach(c => { if (c.extends === S.sel) cOn.add(c.id); if (c.id === S.sel && c.extends) cOn.add(c.extends); });
+    svg.classList.toggle('sel', !!S.sel);
+    svg.querySelectorAll('.nd').forEach(g => { g.classList.toggle('on', on.has(g.dataset.sel)); g.classList.toggle('me', mine.has(g.dataset.sel)); });
+    svg.querySelectorAll('.cn').forEach(g => { g.classList.toggle('on', cOn.has(g.dataset.sel)); g.classList.toggle('me', g.dataset.sel === S.sel); });
+    svg.querySelectorAll('.w,.dot').forEach(p => { const k = p.dataset.k; p.classList.remove('on', 'out', 'in');
+      if (k !== undefined && k in wOn) p.classList.add('on', wOn[k]); });
+    svg.querySelectorAll('.ext').forEach(p => p.classList.toggle('on', !!p.dataset.ext && extOn(p.dataset.ext.split('|'))));
+    $('#ov-info').innerHTML = S.sel ? `<div class="card" style="padding:8px 12px;margin:0">${tipHtml(S.sel)}<div style="margin-top:4px"><span class="link" data-focus="${esc(S.sel)}">看它的關係圖與 JSON／JS 對照 ↗</span>${!isCls ? `　<span class="link" data-jump="${esc(S.sel)}">規則卡片 ↗</span>` : ''}　<span style="color:var(--mu)">相關：${on.size - mine.size} 個節點</span></div></div>` : '<span style="color:var(--mu)">尚未選取</span>';
+    history.replaceState(null, '', (S.solo ? '#circuit' : '#overview') + (S.sel ? '/' + encodeURIComponent(S.sel) : ''));
+  };
+  S.ovApply(S.sel);
+}
+
+function render() { side(); ({ code, matrix, rules, diagram, overview })[S.view](); }
+
+function open(key, rule) {
+  const r = DB.refs[key];
+  let fnSrc = r;
+  if (!fnSrc) { // 沒被規則引用的函式：臨時只顯示名稱
+    const [file, fn] = key.split('#'); fnSrc = { file, fn, usedBy: [], code: null };
+  }
+  $('#dt').textContent = `${fnSrc.file} › ${fnSrc.fn}`;
+  const used = fnSrc.usedBy.map(u => { const [c, n] = u.split('.'); return `<span class="impl" data-jump="${esc(u)}">${esc(u)}</span>`; }).join(' ');
+  const body = fnSrc.code ? `<pre>${fnSrc.code.split('\n').map((l, i) => `<span data-n="${fnSrc.line + i}">${esc(l) || ' '}</span>`).join('')}</pre>` : '<div class="empty">這個函式沒有被任何規則引用，原始碼請直接開檔案。</div>';
+  // 左：引用這個函式的規則在 JSON 裡的原文（點的那條排第一）；右：JS 原始碼
+  const rid = [rule, ...fnSrc.usedBy.filter(u => u !== rule)].filter(Boolean);
+  const json = rid.map(u => {
+    const [c, n] = u.split('.'), cl = byId[c], it = (cl.rules || {})[n] || (cl.attributes || {})[n], { implRefs, ...raw } = it;
+    return `<div class="lbl" style="margin:8px 0 2px">${esc(u)}</div><pre>${JSON.stringify(raw, null, 2).split('\n').map((l, i) => `<span data-n="${i + 1}">${esc(l) || ' '}</span>`).join('')}</pre>`;
+  }).join('') || '<div class="empty">沒有對應的 JSON 規則</div>';
+  $('#db').innerHTML = `<div class="row"><span class="lbl">對應規則</span>${used || '<span style="color:var(--mu)">（無）</span>'}</div>${fnSrc.note ? `<div class="row"><span class="lbl">備註</span>${esc(fnSrc.note)}</div>` : ''}
+    <div class="split"><div><h5>JSON　<small>規則與數值（99_config）</small></h5>${json}</div><div><h5>JS　<small>${esc(fnSrc.file)}</small></h5>${body}</div></div>`;
+  $('#drawer').classList.add('open');
+}
+
+document.addEventListener('click', e => {
+  const z = e.target.closest('[data-zoom]');
+  if (z) { const v = z.dataset.zoom; S.ovZoom(v === 'fit' ? Math.min(1, $('#ov-wrap').clientWidth / +$('#ov').dataset.w) : S.zoom * (v === '+' ? 1.25 : 0.8)); return; }
+  if (e.target.closest('#ov')) { if (S.dragged) return; const s = e.target.closest('[data-sel]'); S.ovApply(s ? s.dataset.sel : null); return; }
+  const t = e.target.closest('[data-go],[data-st],[data-ref],[data-jump],[data-focus]');
+  if (!t) return;
+  if (t.dataset.focus) { e.preventDefault(); go('diagram/' + t.dataset.focus); }
+  else if (t.dataset.go) go(t.dataset.go === 'ALL' ? 'all' : t.dataset.go);
+  else if (t.dataset.st) { S.status = S.status === t.dataset.st ? null : t.dataset.st; render(); }
+  else if (t.dataset.ref) open(t.dataset.ref, t.dataset.rule || t.closest('.card')?.id.slice(2));
+  else if (t.dataset.jump) {
+    const [c] = t.dataset.jump.split('.'); S.q = ''; $('#q').value = ''; S.status = null; S.view = 'rules'; S.cls = c; render();
+    $('#drawer').classList.remove('open');
+    const el = document.getElementById('c-' + t.dataset.jump.replace('#A', '')); if (el) { el.scrollIntoView({ block: 'center' }); el.classList.add('flash'); }
+  }
+});
+// 滑鼠移到帶 data-tip 的東西上：浮出規則描述（data-tip 是 Class.name 或 class id）
+const tipEl = $('#tip');
+function tipHtml(id) {
+  const n = nodeById[id], c = byId[id];
+  if (n) return `<b>${esc(n.id)}</b> <span class="pill s-${esc(n.status)}">${esc(n.status)}</span><div>${esc(n.desc || '（沒有描述）')}</div>${n.formula ? `<div class="tm">公式：${esc(n.formula)}</div>` : ''}`;
+  return c ? `<b>${esc(c.id)}</b>${c.extends ? ` extends ${esc(c.extends)}` : ''}<div>${esc(c.label || '')}</div>${c.note ? `<div class="tm">${esc(c.note)}</div>` : ''}` : '';
+}
+document.addEventListener('mouseover', e => {
+  const t = e.target.closest('[data-tip]'), h = t && tipHtml(t.dataset.tip);
+  if (!h) { tipEl.style.display = 'none'; return; }
+  tipEl.innerHTML = h; tipEl.style.display = 'block';
+});
+document.addEventListener('mousemove', e => {
+  if (tipEl.style.display === 'none') return;
+  const w = tipEl.offsetWidth, hgt = tipEl.offsetHeight;
+  tipEl.style.left = Math.min(e.clientX + 14, innerWidth - w - 8) + 'px';
+  tipEl.style.top = (e.clientY + 16 + hgt > innerHeight ? e.clientY - hgt - 12 : e.clientY + 16) + 'px';
+});
+{ // 主題按鈕：自動 → 淺色 → 深色 → 自動
+  const L = { auto: '🖥 自動', light: '☀ 淺色', dark: '🌙 深色' }, btn = $('#theme');
+  const show = () => { btn.textContent = L[themePref]; applyTheme(); };
+  btn.onclick = () => { themePref = { auto: 'light', light: 'dark', dark: 'auto' }[themePref] || 'auto'; try { localStorage.setItem('theme', themePref); } catch (e) {} show(); };
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', show); show();
+}
+$('#dx').onclick =() => $('#drawer').classList.remove('open');
+$('#q').oninput = e => { S.q = e.target.value.trim(); render(); };
+addEventListener('keydown', e => {
+  if (e.key === '/' && document.activeElement !== $('#q')) { e.preventDefault(); $('#q').focus(); }
+  if (e.key === 'Escape') $('#drawer').classList.remove('open');
+});
+addEventListener('hashchange', hash);
+stats(); hash();
+</script>
+</body>
+</html>
